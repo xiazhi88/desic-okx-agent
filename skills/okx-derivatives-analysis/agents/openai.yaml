@@ -1,0 +1,9 @@
+interface:
+  display_name: "OKX Derivatives Analysis"
+  short_description: "Analyze positioning, funding, flow, and crowding evidence."
+  default_prompt: "Use $okx-derivatives-analysis to assess derivatives positioning for BTC-USDT-SWAP."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "desic-okx"
+      description: "Desic OKX Agent MCP server"

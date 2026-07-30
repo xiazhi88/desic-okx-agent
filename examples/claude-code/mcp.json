@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "desic-okx": {
+      "command": "desic-okx",
+      "args": ["mcp"]
+    }
+  }
+}

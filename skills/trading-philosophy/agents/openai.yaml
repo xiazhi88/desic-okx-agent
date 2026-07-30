@@ -1,0 +1,4 @@
+interface:
+  display_name: "Trading Philosophy"
+  short_description: "Apply evidence, invalidation, and risk-aware trading reasoning."
+  default_prompt: "Use $trading-philosophy to critique a trading thesis and its invalidation conditions."

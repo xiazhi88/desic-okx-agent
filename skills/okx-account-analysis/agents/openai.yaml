@@ -1,0 +1,9 @@
+interface:
+  display_name: "OKX Account Analysis"
+  short_description: "Inspect balances, positions, orders, fills, and account risk."
+  default_prompt: "Use $okx-account-analysis to summarize the selected OKX account safely."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "desic-okx"
+      description: "Desic OKX Agent MCP server"

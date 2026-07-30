@@ -1,0 +1,9 @@
+interface:
+  display_name: "OKX Trading"
+  short_description: "Precheck and execute direct OKX orders with explicit parameters."
+  default_prompt: "Use $okx-trading to precheck and submit the requested OKX order."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "desic-okx"
+      description: "Desic OKX Agent MCP server"

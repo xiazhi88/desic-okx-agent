@@ -1,0 +1,9 @@
+interface:
+  display_name: "OKX Market Analysis"
+  short_description: "Analyze live OKX market structure and aligned snapshots."
+  default_prompt: "Use $okx-market-analysis to analyze BTC-USDT-SWAP market structure."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "desic-okx"
+      description: "Desic OKX Agent MCP server"

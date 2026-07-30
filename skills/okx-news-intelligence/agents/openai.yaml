@@ -1,0 +1,9 @@
+interface:
+  display_name: "OKX News Intelligence"
+  short_description: "Research OKX news, sentiment, events, and market reactions."
+  default_prompt: "Use $okx-news-intelligence to build an evidence-based crypto news briefing."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "desic-okx"
+      description: "Desic OKX Agent MCP server"

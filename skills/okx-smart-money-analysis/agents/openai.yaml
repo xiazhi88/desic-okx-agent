@@ -1,0 +1,9 @@
+interface:
+  display_name: "OKX Smart Money Analysis"
+  short_description: "Analyze public trader performance, positions, and signal trends."
+  default_prompt: "Use $okx-smart-money-analysis to compare Smart Money signals without blindly following them."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "desic-okx"
+      description: "Desic OKX Agent MCP server"

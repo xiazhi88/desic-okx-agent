@@ -1,0 +1,16 @@
+[
+  {
+    "id": "news-1",
+    "title": "Bitcoin ETF inflows rise after market open",
+    "coins": ["BTC"],
+    "platform": "source-a",
+    "publishTime": 1785400000000
+  },
+  {
+    "id": "news-2",
+    "title": "Bitcoin ETF inflows rise sharply after market open",
+    "coins": ["BTC"],
+    "platform": "source-b",
+    "publishTime": 1785400300000
+  }
+]

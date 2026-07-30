@@ -1,0 +1,18 @@
+{
+  "accounts": {},
+  "market": {
+    "prewarm": ["BTC-USDT-SWAP", "ETH-USDT-SWAP"],
+    "bars": ["1m", "5m", "15m", "1H", "4H", "1D"],
+    "idleSubscriptionMs": 900000,
+    "maxSnapshotSkewMs": 1000,
+    "orderBookDepth": 50,
+    "recentTradeLimit": 1000
+  },
+  "proxy": {},
+  "intelligence": {
+    "newsPollSeconds": 120,
+    "sentimentPollMinutes": 15,
+    "smartMoneyPollMinutes": 15,
+    "retentionDays": 30
+  }
+}

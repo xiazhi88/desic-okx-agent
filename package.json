@@ -1,0 +1,71 @@
+{
+  "name": "desic-okx-agent",
+  "version": "0.1.0",
+  "description": "Independent Desic runtime, MCP server, CLI, and agent skills for OKX",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xiazhi88/desic-okx-agent.git"
+  },
+  "homepage": "https://github.com/xiazhi88/desic-okx-agent#readme",
+  "bugs": {
+    "url": "https://github.com/xiazhi88/desic-okx-agent/issues"
+  },
+  "keywords": [
+    "okx",
+    "mcp",
+    "codex",
+    "claude-code",
+    "trading",
+    "market-data"
+  ],
+  "bin": {
+    "desic-okx": "dist/cli/index.js"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "examples",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx src/cli/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:demo": "node scripts/run-demo-e2e.mjs",
+    "test:watch": "vitest",
+    "validate:skills": "node scripts/validate-skills.mjs",
+    "scan:sensitive": "node scripts/scan-sensitive.mjs",
+    "test:mcp": "node scripts/mcp-smoke.mjs",
+    "check": "npm run typecheck && npm run test && npm run validate:skills && npm run scan:sensitive && npm run build && npm run test:mcp",
+    "prepack": "npm run check"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "better-sqlite3": "^13.0.2",
+    "commander": "^15.0.0",
+    "crc-32": "^1.2.2",
+    "env-paths": "^4.0.0",
+    "https-proxy-agent": "^7.0.6",
+    "undici": "^7.16.0",
+    "ws": "^8.21.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.19.15",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
