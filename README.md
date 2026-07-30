@@ -43,7 +43,7 @@ Run the guided setup after installation:
 desic-okx setup
 ```
 
-The terminal UI lets you select Codex, Claude Code, Cursor, VS Code / GitHub Copilot, Cline, or all supported clients. It safely adds the `desic-okx` MCP entry without replacing other MCP servers.
+The terminal guide lets you select Codex, Claude Code, Cursor, VS Code / GitHub Copilot, Cline, or all supported clients. Enter one or more numbered choices, separated by commas. It safely adds the `desic-okx` MCP entry without replacing other MCP servers.
 
 For Codex and Claude Code, setup also installs all bundled Skills automatically. Cursor, VS Code / GitHub Copilot, and Cline receive MCP configuration only because they do not share a portable `SKILL.md` installation format.
 
@@ -269,7 +269,7 @@ Normal tests never submit orders.
 
 ## Status
 
-This repository is currently pre-release software at version `0.1.3`. Unit, packaging, Skill, and MCP transport checks are automated. Real OKX Demo trading should be validated in the target network environment before a `1.0.0` release.
+This repository is currently pre-release software at version `0.1.4`. Unit, packaging, Skill, and MCP transport checks are automated. Real OKX Demo trading should be validated in the target network environment before a `1.0.0` release.
 
 ## License
 

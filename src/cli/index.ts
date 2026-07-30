@@ -10,7 +10,7 @@ import { runMcpServer } from "../mcp/server.js";
 import { RuntimeClient } from "../runtime/client.js";
 import { runRuntimeServer } from "../runtime/server.js";
 import { ask, askSecret } from "./prompts.js";
-import { SetupCancelledError, chooseSetupTargets, parseSetupTargets, SETUP_TARGETS, showSetupResult, setupSucceeded, setupSummary, setupTargets } from "../setup/installer.js";
+import { SetupCancelledError, parseSetupTargets, runInteractiveSetup, SETUP_TARGETS, setupSucceeded, setupSummary, setupTargets } from "../setup/installer.js";
 
 const program = new Command()
   .name("desic-okx")
@@ -53,13 +53,16 @@ program.command("setup")
   .option("--yes", "Run without interactive prompts; defaults to all targets when none are specified")
   .action(async (options: { targets?: string; all?: boolean; yes?: boolean }) => {
     const interactive = !options.all && !options.targets && !options.yes;
+    if (interactive) {
+      const results = await runInteractiveSetup();
+      if (!setupSucceeded(results)) process.exitCode = 1;
+      return;
+    }
     const targets = options.all ? [...SETUP_TARGETS]
       : options.targets ? parseSetupTargets(options.targets)
-        : options.yes ? [...SETUP_TARGETS]
-          : await chooseSetupTargets();
+        : [...SETUP_TARGETS];
     const results = setupTargets(targets);
-    if (interactive) showSetupResult(results);
-    else print({ targets, results, summary: setupSummary(results) });
+    print({ targets, results, summary: setupSummary(results) });
     if (!setupSucceeded(results)) process.exitCode = 1;
   });
 

@@ -2,8 +2,8 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
-import * as prompts from "@clack/prompts";
 
 export const SETUP_TARGETS = ["codex", "claude-code", "cursor", "vscode", "cline"] as const;
 export type SetupTarget = typeof SETUP_TARGETS[number];
@@ -53,25 +53,50 @@ export function parseSetupTargets(value: string): SetupTarget[] {
   return [...new Set(requested as SetupTarget[])];
 }
 
-export async function chooseSetupTargets(): Promise<SetupTarget[]> {
-  prompts.intro("Desic OKX Agent setup");
-  const selection = await prompts.multiselect({
-    message: "Choose AI clients to configure",
-    options: [
-      { value: "all", label: "All supported clients", hint: "Codex, Claude Code, Cursor, VS Code/Copilot, Cline" },
-      { value: "codex", label: "Codex", hint: "MCP + all Desic skills" },
-      { value: "claude-code", label: "Claude Code", hint: "MCP + all Desic skills" },
-      { value: "cursor", label: "Cursor", hint: "MCP" },
-      { value: "vscode", label: "VS Code / GitHub Copilot", hint: "MCP" },
-      { value: "cline", label: "Cline", hint: "MCP" }
-    ],
-    required: true
-  });
-  if (prompts.isCancel(selection)) {
-    prompts.cancel("Setup cancelled");
-    throw new SetupCancelledError();
+export function parseInteractiveSetupTargets(value: string): SetupTarget[] {
+  const answer = value.trim().toLowerCase();
+  if (answer === "q" || answer === "quit") throw new SetupCancelledError();
+  if (answer === "a" || answer === "all") return [...SETUP_TARGETS];
+
+  const targetNumbers: Record<string, SetupTarget> = {
+    "1": "codex",
+    "2": "claude-code",
+    "3": "cursor",
+    "4": "vscode",
+    "5": "cline"
+  };
+  const requested = answer.split(/[\s,]+/).filter(Boolean);
+  if (requested.length === 0) throw new Error("Select at least one client");
+  const invalid = requested.filter((item) => !(item in targetNumbers));
+  if (invalid.length > 0) throw new Error(`Invalid selection: ${invalid.join(", ")}`);
+  return [...new Set(requested.map((item) => targetNumbers[item] as SetupTarget))];
+}
+
+export async function runInteractiveSetup(): Promise<SetupResult[]> {
+  process.stdout.write([
+    "Desic OKX Agent setup",
+    "",
+    "Select AI clients (enter one or more numbers separated by commas):",
+    "  1. Codex                       MCP + all Desic skills",
+    "  2. Claude Code                 MCP + all Desic skills",
+    "  3. Cursor                      MCP",
+    "  4. VS Code / GitHub Copilot    MCP",
+    "  5. Cline                       MCP",
+    "  A. All supported clients",
+    "  Q. Cancel",
+    ""
+  ].join("\n"));
+
+  const prompt = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const targets = parseInteractiveSetupTargets(await prompt.question("Selection: "));
+    process.stdout.write("\nConfiguring selected clients...\n");
+    const results = setupTargets(targets);
+    showSetupResult(results);
+    return results;
+  } finally {
+    prompt.close();
   }
-  return parseSetupTargets((selection as string[]).join(","));
 }
 
 export class SetupCancelledError extends Error {
@@ -220,7 +245,11 @@ function defaultSkillSourceDir(): string {
 
 function runExternalCommand(command: string, args: string[]): CommandResult {
   const executable = resolveExecutable(command);
-  const result = spawnSync(executable, args, { encoding: "utf8", windowsHide: true });
+  const result = spawnSync(executable, args, {
+    encoding: "utf8",
+    windowsHide: true,
+    shell: process.platform === "win32"
+  });
   if (result.error) return { ok: false, message: `${command} is unavailable: ${result.error.message}` };
   if (result.status !== 0) return { ok: false, message: `${command} did not accept the MCP configuration` };
   return { ok: true };
@@ -246,7 +275,14 @@ export function setupSummary(results: SetupResult[]): string {
 }
 
 export function showSetupResult(results: SetupResult[]): void {
-  prompts.note(setupSummary(results), "Setup result");
-  if (setupSucceeded(results)) prompts.outro("Setup complete. Restart the selected AI clients.");
-  else prompts.outro("Setup finished with errors. Review the failed targets above.");
+  const lines = ["", "Setup result"];
+  for (const result of results) {
+    lines.push(`${TARGET_LABELS[result.target]}: MCP ${result.mcp}, skills ${result.skills}`);
+    lines.push(...result.details.map((detail) => `  - ${detail}`));
+  }
+  lines.push("");
+  lines.push(setupSucceeded(results)
+    ? "Setup complete. Restart the selected AI clients."
+    : "Setup finished with errors. Review the failed targets above.");
+  process.stdout.write(`${lines.join("\n")}\n`);
 }
