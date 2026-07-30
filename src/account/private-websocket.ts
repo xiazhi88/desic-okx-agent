@@ -4,6 +4,7 @@ import { HttpsProxyAgent } from "https-proxy-agent";
 import type { RuntimeConfig } from "../config/schema.js";
 import type { AccountCredentials } from "../core/types.js";
 import { AccountStore } from "./store.js";
+import { resolveProxy } from "../network/proxy.js";
 
 interface Connection {
   account: AccountCredentials;
@@ -20,7 +21,8 @@ export class PrivateAccountWebSockets {
 
   constructor(config: RuntimeConfig, private readonly store: AccountStore) {
     this.connections = Object.entries(config.accounts).map(([name, account]) => ({ account: { name, ...account }, stopping: false, attempt: 0 }));
-    this.agent = config.proxy.url ? new HttpsProxyAgent(config.proxy.url) : undefined;
+    const proxyUrl = resolveProxy(config.proxy.url).url;
+    this.agent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
   }
 
   start(): void {

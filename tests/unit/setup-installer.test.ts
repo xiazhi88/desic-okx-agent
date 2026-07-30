@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { mergeCodexMcpConfig, mergeMcpConfig, parseInteractiveSetupTargets, parseSetupTargets, runExternalCommand, setupSucceeded, setupTargets } from "../../src/setup/installer.js";
+import { mergeCodexMcpConfig, mergeMcpConfig, parseSetupTargets, runExternalCommand, setupSucceeded, setupTargets } from "../../src/setup/installer.js";
 
 const directories: string[] = [];
 afterEach(() => directories.splice(0).forEach((directory) => fs.rmSync(directory, { recursive: true, force: true })));
@@ -17,14 +17,6 @@ describe("setup installer", () => {
   it("expands all and rejects unknown targets", () => {
     expect(parseSetupTargets("all")).toEqual(["codex", "claude-code", "cursor", "vscode", "cline"]);
     expect(() => parseSetupTargets("codex,unknown")).toThrow("Unsupported setup target");
-  });
-
-  it("parses interactive numbered selections", () => {
-    expect(parseInteractiveSetupTargets("a")).toEqual(["codex", "claude-code", "cursor", "vscode", "cline"]);
-    expect(parseInteractiveSetupTargets("1, 3")).toEqual(["codex", "cursor"]);
-    expect(parseInteractiveSetupTargets("2 2 5")).toEqual(["claude-code", "cline"]);
-    expect(() => parseInteractiveSetupTargets("6")).toThrow("Invalid selection");
-    expect(() => parseInteractiveSetupTargets("")).toThrow("Select at least one client");
   });
 
   it("merges a JSON MCP config without changing other servers", () => {

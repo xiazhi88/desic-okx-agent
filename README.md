@@ -43,9 +43,11 @@ Run the guided setup after installation:
 desic-okx setup
 ```
 
-The terminal guide lets you select Codex, Claude Code, Cursor, VS Code / GitHub Copilot, Cline, or all supported clients. Enter one or more numbered choices, separated by commas. It safely adds the `desic-okx` MCP entry without replacing other MCP servers.
+The terminal guide lets you select Codex, Claude Code, Cursor, VS Code / GitHub Copilot, Cline, or all supported clients with the arrow keys and Space. It safely adds the `desic-okx` MCP entry without replacing other MCP servers.
 
 For Codex and Claude Code, setup also installs all bundled Skills automatically. Cursor, VS Code / GitHub Copilot, and Cline receive MCP configuration only because they do not share a portable `SKILL.md` installation format.
+
+Setup then checks both OKX REST and WebSocket connectivity. When direct and detected system-proxy connections fail, it offers to test and save an HTTP proxy URL, retry, or continue without network access.
 
 For automation, choose explicit targets without opening the UI:
 
@@ -53,7 +55,10 @@ For automation, choose explicit targets without opening the UI:
 desic-okx setup --targets codex --yes
 desic-okx setup --targets codex,claude-code --yes
 desic-okx setup --all --yes
+desic-okx setup --targets codex --yes --skip-network-check
 ```
+
+Non-interactive setup exits with an error when the network check fails. Use `--skip-network-check` only when connectivity will be configured later.
 
 Restart the selected client after setup. The MCP server starts the local Runtime automatically when it is first used.
 
@@ -195,7 +200,16 @@ The three credential values must be provided together. Whether an account can tr
 
 ## Proxy
 
-REST and WebSocket connections share the proxy configured in `config.json`:
+REST and every public, business, and private WebSocket connection use the same proxy resolution order:
+
+1. `proxy.url` in `config.json`
+2. `HTTPS_PROXY`, `HTTP_PROXY`, or `ALL_PROXY` environment variables, with `NO_PROXY` support
+3. The enabled Windows or macOS HTTP/HTTPS system proxy
+4. Direct connection
+
+Linux system-wide desktop proxy settings vary by distribution; use the standard environment variables or `config.json`. Only HTTP and HTTPS proxy URLs are supported. PAC-only and SOCKS-only system settings require an HTTP proxy endpoint.
+
+Example explicit configuration:
 
 ```json
 {
@@ -205,7 +219,7 @@ REST and WebSocket connections share the proxy configured in `config.json`:
 }
 ```
 
-See `examples/config.example.json` for a complete credential-free configuration template. Restart the Runtime after changing configuration.
+The guided `desic-okx setup` flow tests a manually entered proxy before saving it. See `examples/config.example.json` for a complete credential-free configuration template. Restart the Runtime after changing configuration.
 
 ## Runtime behavior
 
@@ -269,7 +283,7 @@ Normal tests never submit orders.
 
 ## Status
 
-This repository is currently pre-release software at version `0.1.7`. Unit, packaging, Skill, and MCP transport checks are automated. Real OKX Demo trading should be validated in the target network environment before a `1.0.0` release.
+This repository is currently pre-release software at version `0.1.8`. Unit, packaging, Skill, and MCP transport checks are automated. Real OKX Demo trading should be validated in the target network environment before a `1.0.0` release.
 
 ## License
 

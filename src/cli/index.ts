@@ -5,12 +5,15 @@ import { CONFIG_PATH } from "../config/paths.js";
 import { OkxClient } from "../core/okx-client.js";
 import { publicError } from "../core/errors.js";
 import { PACKAGE_VERSION } from "../core/version.js";
+import { checkOkxConnectivity, OKX_REST_BASE_URL } from "../network/connectivity.js";
+import { displayProxy, resolveProxy } from "../network/proxy.js";
 import { AccountService } from "../account/service.js";
 import { runMcpServer } from "../mcp/server.js";
 import { RuntimeClient } from "../runtime/client.js";
 import { runRuntimeServer } from "../runtime/server.js";
 import { ask, askSecret } from "./prompts.js";
-import { SetupCancelledError, parseSetupTargets, runInteractiveSetup, SETUP_TARGETS, setupSucceeded, setupSummary, setupTargets } from "../setup/installer.js";
+import { SetupCancelledError, parseSetupTargets, SETUP_TARGETS, setupSucceeded, setupSummary, setupTargets } from "../setup/installer.js";
+import { runSetupWizard } from "../setup/wizard.js";
 
 const program = new Command()
   .name("desic-okx")
@@ -51,19 +54,28 @@ program.command("setup")
   .option("--targets <targets>", `Comma-separated targets: ${SETUP_TARGETS.join(", ")}, all`)
   .option("--all", "Configure every supported target")
   .option("--yes", "Run without interactive prompts; defaults to all targets when none are specified")
-  .action(async (options: { targets?: string; all?: boolean; yes?: boolean }) => {
+  .option("--skip-network-check", "Skip OKX REST and WebSocket connectivity checks")
+  .action(async (options: { targets?: string; all?: boolean; yes?: boolean; skipNetworkCheck?: boolean }) => {
     const interactive = !options.all && !options.targets && !options.yes;
     if (interactive) {
-      const results = await runInteractiveSetup();
-      if (!setupSucceeded(results)) process.exitCode = 1;
+      const outcome = await runSetupWizard({ skipNetworkCheck: options.skipNetworkCheck });
+      if (outcome.proxyChanged) await stopForReload();
+      if (!setupSucceeded(outcome.results) || (outcome.network && !outcome.network.ok && !outcome.networkSkipped)) process.exitCode = 1;
       return;
     }
     const targets = options.all ? [...SETUP_TARGETS]
       : options.targets ? parseSetupTargets(options.targets)
         : [...SETUP_TARGETS];
     const results = setupTargets(targets);
-    print({ targets, results, summary: setupSummary(results) });
-    if (!setupSucceeded(results)) process.exitCode = 1;
+    const proxy = resolveProxy(loadStoredConfig().proxy.url);
+    const network = options.skipNetworkCheck ? undefined : await checkOkxConnectivity(proxy.url);
+    print({
+      targets,
+      results,
+      summary: setupSummary(results),
+      network: network ? { ...network, connection: displayProxy(proxy) } : { skipped: true }
+    });
+    if (!setupSucceeded(results) || (network && !network.ok)) process.exitCode = 1;
   });
 
 program.command("call")
@@ -120,7 +132,7 @@ account.command("verify")
   .option("--name <name>", "account alias")
   .action(async (options: { name?: string }) => {
     const config = loadConfig();
-    const client = new OkxClient("https://www.okx.com", config.proxy.url);
+    const client = new OkxClient(OKX_REST_BASE_URL, resolveProxy(config.proxy.url).url);
     const service = new AccountService(config, client);
     print(await service.verify(options.name));
   });

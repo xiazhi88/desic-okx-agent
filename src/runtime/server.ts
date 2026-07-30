@@ -8,6 +8,8 @@ import { OkxClient } from "../core/okx-client.js";
 import { publicError } from "../core/errors.js";
 import { sanitizeValue } from "../core/sanitize.js";
 import { PACKAGE_VERSION } from "../core/version.js";
+import { OKX_REST_BASE_URL } from "../network/connectivity.js";
+import { resolveProxy } from "../network/proxy.js";
 import { DerivativesService } from "../derivatives/service.js";
 import { IntelligenceService } from "../intelligence/service.js";
 import { MarketService } from "../market/service.js";
@@ -21,7 +23,8 @@ import { acquireRuntimeLock, appendRuntimeLifecycle, releaseRuntimeFiles, writeR
 export class RuntimeServer {
   private readonly config = loadConfig();
   private readonly database = new RuntimeDatabase();
-  private readonly client = new OkxClient("https://www.okx.com", this.config.proxy.url);
+  private readonly proxy = resolveProxy(this.config.proxy.url);
+  private readonly client = new OkxClient(OKX_REST_BASE_URL, this.proxy.url);
   private readonly store = new MarketStore(this.config.market.recentTradeLimit, this.config.market.orderBookDepth);
   private readonly market = new MarketService(this.config, this.store, this.client, this.database);
   private readonly websocket = new MarketWebSocket(this.config, this.store, this.database);

@@ -4,6 +4,7 @@ import type { AccountCredentials, OkxEnvelope } from "./types.js";
 import { applyOrderAttribution } from "./attribution.js";
 import { classifyOkxError, RuntimeError } from "./errors.js";
 import { sanitizeValue } from "./sanitize.js";
+import { OKX_REST_BASE_URL } from "../network/connectivity.js";
 
 interface RequestOptions {
   query?: Record<string, unknown>;
@@ -19,7 +20,7 @@ export class OkxClient {
   private readonly dispatcher?: Dispatcher;
 
   constructor(
-    private readonly baseUrl = "https://www.okx.com",
+    private readonly baseUrl = OKX_REST_BASE_URL,
     proxyUrl?: string
   ) {
     this.dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;

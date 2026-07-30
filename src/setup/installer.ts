@@ -2,7 +2,6 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
 export const SETUP_TARGETS = ["codex", "claude-code", "cursor", "vscode", "cline"] as const;
@@ -51,52 +50,6 @@ export function parseSetupTargets(value: string): SetupTarget[] {
   if (invalid.length > 0) throw new Error(`Unsupported setup target: ${invalid.join(", ")}`);
   if (requested.length === 0) throw new Error("At least one setup target is required");
   return [...new Set(requested as SetupTarget[])];
-}
-
-export function parseInteractiveSetupTargets(value: string): SetupTarget[] {
-  const answer = value.trim().toLowerCase();
-  if (answer === "q" || answer === "quit") throw new SetupCancelledError();
-  if (answer === "a" || answer === "all") return [...SETUP_TARGETS];
-
-  const targetNumbers: Record<string, SetupTarget> = {
-    "1": "codex",
-    "2": "claude-code",
-    "3": "cursor",
-    "4": "vscode",
-    "5": "cline"
-  };
-  const requested = answer.split(/[\s,]+/).filter(Boolean);
-  if (requested.length === 0) throw new Error("Select at least one client");
-  const invalid = requested.filter((item) => !(item in targetNumbers));
-  if (invalid.length > 0) throw new Error(`Invalid selection: ${invalid.join(", ")}`);
-  return [...new Set(requested.map((item) => targetNumbers[item] as SetupTarget))];
-}
-
-export async function runInteractiveSetup(): Promise<SetupResult[]> {
-  process.stdout.write([
-    "Desic OKX Agent setup",
-    "",
-    "Select AI clients (enter one or more numbers separated by commas):",
-    "  1. Codex                       MCP + all Desic skills",
-    "  2. Claude Code                 MCP + all Desic skills",
-    "  3. Cursor                      MCP",
-    "  4. VS Code / GitHub Copilot    MCP",
-    "  5. Cline                       MCP",
-    "  A. All supported clients",
-    "  Q. Cancel",
-    ""
-  ].join("\n"));
-
-  const prompt = createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    const targets = parseInteractiveSetupTargets(await prompt.question("Selection: "));
-    process.stdout.write("\nConfiguring selected clients...\n");
-    const results = setupTargets(targets);
-    showSetupResult(results);
-    return results;
-  } finally {
-    prompt.close();
-  }
 }
 
 export class SetupCancelledError extends Error {

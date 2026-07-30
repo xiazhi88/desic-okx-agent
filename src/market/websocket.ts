@@ -3,6 +3,7 @@ import { HttpsProxyAgent } from "https-proxy-agent";
 import type { RuntimeConfig } from "../config/schema.js";
 import type { RuntimeDatabase } from "../storage/database.js";
 import { MarketStore, type BookLevel, type OrderBookSnapshot, type RawCandle, type RawMarketRow } from "./store.js";
+import { resolveProxy } from "../network/proxy.js";
 
 interface OkxWsMessage {
   event?: string;
@@ -30,7 +31,8 @@ export class MarketWebSocket {
     private readonly database: RuntimeDatabase,
     private readonly onBookInvalid?: (instId: string) => void
   ) {
-    this.agent = config.proxy.url ? new HttpsProxyAgent(config.proxy.url) : undefined;
+    const proxyUrl = resolveProxy(config.proxy.url).url;
+    this.agent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
   }
 
   start(): void {

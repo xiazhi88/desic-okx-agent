@@ -14,7 +14,7 @@ describe.skipIf(!enabled)("OKX Demo trading workflow", () => {
   it("places, reconciles, amends, cancels, fills, and closes orders", async () => {
     if (process.env.OKX_ENVIRONMENT !== "demo") throw new Error("This test is restricted to OKX Demo");
     const config = loadConfig();
-    const client = new OkxClient("https://www.okx.com", config.proxy.url);
+    const client = new OkxClient("https://openapi.okx.com", config.proxy.url);
     const accountService = new AccountService(config, client);
     const account = accountService.account();
     if (account.environment !== "demo") throw new Error("The selected account is not an OKX Demo account");
