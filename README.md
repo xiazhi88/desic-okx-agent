@@ -35,6 +35,40 @@ npm install --global desic-okx-agent
 
 This registers the `desic-okx` command on the local machine.
 
+## Set up an AI client
+
+Run the guided setup after installation:
+
+```bash
+desic-okx setup
+```
+
+The terminal UI lets you select Codex, Claude Code, Cursor, VS Code / GitHub Copilot, Cline, or all supported clients. It safely adds the `desic-okx` MCP entry without replacing other MCP servers.
+
+For Codex and Claude Code, setup also installs all bundled Skills automatically. Cursor, VS Code / GitHub Copilot, and Cline receive MCP configuration only because they do not share a portable `SKILL.md` installation format.
+
+For automation, choose explicit targets without opening the UI:
+
+```bash
+desic-okx setup --targets codex --yes
+desic-okx setup --targets codex,claude-code --yes
+desic-okx setup --all --yes
+```
+
+Restart the selected client after setup. The MCP server starts the local Runtime automatically when it is first used.
+
+## Ask an AI to install it
+
+Paste this into Codex, Claude Code, Cursor, VS Code / GitHub Copilot, or Cline. Replace `codex` with `claude-code`, `cursor`, `vscode`, `cline`, or `all` when appropriate.
+
+```text
+Install Desic OKX Agent for me. Check that Node.js is at least 22.12, then run:
+npm install --global desic-okx-agent
+desic-okx setup --targets codex --yes
+
+Verify the installation with `desic-okx status` and `desic-okx tools`. Do not ask for or configure any OKX API credentials. Confirm that public market tools are ready to use.
+```
+
 For development from source:
 
 ```bash
@@ -67,7 +101,7 @@ desic-okx stop
 
 ## Connect Codex
 
-Register the local stdio MCP server:
+The recommended option is `desic-okx setup`, which also installs all Skills. To register only the local stdio MCP server manually:
 
 ```bash
 codex mcp add desic-okx -- desic-okx mcp
@@ -83,7 +117,7 @@ args = ["mcp"]
 
 ## Connect Claude Code
 
-Register it for the current user:
+The recommended option is `desic-okx setup`, which also installs all Skills. To register only the MCP server manually:
 
 ```bash
 claude mcp add --transport stdio --scope user desic-okx -- desic-okx mcp
@@ -97,14 +131,16 @@ claude mcp get desic-okx
 
 A JSON example is available in `examples/claude-code/mcp.json`.
 
-## Install the skills
+## Skills
 
-The MCP server exposes the tools. Skills add reusable analysis and trading workflows. Install only the skills you want by copying their directories from `skills/`.
+`desic-okx setup` automatically installs all seven Skills for Codex and Claude Code. The MCP server exposes the tools; Skills add reusable analysis and trading workflows.
+
+To install selected Skills manually, copy their directories from the installed package:
 
 Codex personal skills:
 
 ```text
-~/.agents/skills/<skill-name>/SKILL.md
+${CODEX_HOME:-~/.codex}/skills/<skill-name>/SKILL.md
 ```
 
 Claude Code personal skills:
@@ -233,7 +269,7 @@ Normal tests never submit orders.
 
 ## Status
 
-This repository is currently pre-release software at version `0.1.0`. Unit, packaging, Skill, and MCP transport checks are automated. Real OKX Demo trading should be validated in the target network environment before a `1.0.0` release.
+This repository is currently pre-release software at version `0.1.1`. Unit, packaging, Skill, and MCP transport checks are automated. Real OKX Demo trading should be validated in the target network environment before a `1.0.0` release.
 
 ## License
 

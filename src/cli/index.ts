@@ -9,6 +9,7 @@ import { runMcpServer } from "../mcp/server.js";
 import { RuntimeClient } from "../runtime/client.js";
 import { runRuntimeServer } from "../runtime/server.js";
 import { ask, askSecret } from "./prompts.js";
+import { SetupCancelledError, chooseSetupTargets, parseSetupTargets, SETUP_TARGETS, setupSucceeded, setupSummary, setupTargets } from "../setup/installer.js";
 
 const program = new Command()
   .name("desic-okx")
@@ -43,6 +44,21 @@ program.command("status")
 program.command("mcp")
   .description("Run the stdio MCP adapter")
   .action(async () => runMcpServer());
+
+program.command("setup")
+  .description("Interactively configure supported AI clients and install compatible skills")
+  .option("--targets <targets>", `Comma-separated targets: ${SETUP_TARGETS.join(", ")}, all`)
+  .option("--all", "Configure every supported target")
+  .option("--yes", "Run without interactive prompts; defaults to all targets when none are specified")
+  .action(async (options: { targets?: string; all?: boolean; yes?: boolean }) => {
+    const targets = options.all ? [...SETUP_TARGETS]
+      : options.targets ? parseSetupTargets(options.targets)
+        : options.yes ? [...SETUP_TARGETS]
+          : await chooseSetupTargets();
+    const results = setupTargets(targets);
+    print({ targets, results, summary: setupSummary(results) });
+    if (!setupSucceeded(results)) process.exitCode = 1;
+  });
 
 program.command("call")
   .description("Call one runtime tool")
@@ -117,6 +133,7 @@ account.command("remove")
   });
 
 program.parseAsync(process.argv).catch((error) => {
+  if (error instanceof SetupCancelledError) return;
   process.stderr.write(`${JSON.stringify({ error: publicError(error) })}\n`);
   process.exitCode = 1;
 });

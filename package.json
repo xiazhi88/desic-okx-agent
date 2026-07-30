@@ -1,6 +1,6 @@
 {
   "name": "desic-okx-agent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Independent Desic runtime, MCP server, CLI, and agent skills for OKX",
   "type": "module",
   "license": "MIT",
@@ -50,6 +50,7 @@
     "prepack": "npm run check"
   },
   "dependencies": {
+    "@clack/prompts": "^1.7.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "better-sqlite3": "^13.0.2",
     "commander": "^15.0.0",
