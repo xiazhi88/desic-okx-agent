@@ -269,7 +269,7 @@ Normal tests never submit orders.
 
 ## Status
 
-This repository is currently pre-release software at version `0.1.1`. Unit, packaging, Skill, and MCP transport checks are automated. Real OKX Demo trading should be validated in the target network environment before a `1.0.0` release.
+This repository is currently pre-release software at version `0.1.2`. Unit, packaging, Skill, and MCP transport checks are automated. Real OKX Demo trading should be validated in the target network environment before a `1.0.0` release.
 
 ## License
 

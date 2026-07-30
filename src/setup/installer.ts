@@ -219,10 +219,18 @@ function defaultSkillSourceDir(): string {
 }
 
 function runExternalCommand(command: string, args: string[]): CommandResult {
-  const result = spawnSync(command, args, { encoding: "utf8" });
+  const executable = resolveExecutable(command);
+  const result = spawnSync(executable, args, { encoding: "utf8", windowsHide: true });
   if (result.error) return { ok: false, message: `${command} is unavailable: ${result.error.message}` };
   if (result.status !== 0) return { ok: false, message: `${command} did not accept the MCP configuration` };
   return { ok: true };
+}
+
+function resolveExecutable(command: string): string {
+  if (process.platform !== "win32") return command;
+  const lookup = spawnSync("where.exe", [command], { encoding: "utf8", windowsHide: true });
+  if (lookup.status !== 0 || !lookup.stdout) return command;
+  return lookup.stdout.split(/\r?\n/).map((item) => item.trim()).find(Boolean) ?? command;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -235,4 +243,10 @@ export function setupSucceeded(results: SetupResult[]): boolean {
 
 export function setupSummary(results: SetupResult[]): string {
   return results.map((result) => `${TARGET_LABELS[result.target]}: MCP ${result.mcp}, skills ${result.skills}`).join("\n");
+}
+
+export function showSetupResult(results: SetupResult[]): void {
+  prompts.note(setupSummary(results), "Setup result");
+  if (setupSucceeded(results)) prompts.outro("Setup complete. Restart the selected AI clients.");
+  else prompts.outro("Setup finished with errors. Review the failed targets above.");
 }
