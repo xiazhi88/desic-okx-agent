@@ -25,9 +25,17 @@ The project does not expose withdrawal, deposit, transfer, asset-movement, or AP
 - npm
 - Network access to OKX, or an HTTP/HTTPS proxy that can reach OKX
 
-## Install from GitHub
+## Install
 
-The npm package is not published yet. Install the current source version with:
+Install the published package:
+
+```bash
+npm install --global desic-okx-agent
+```
+
+This registers the `desic-okx` command on the local machine.
+
+For development from source:
 
 ```bash
 git clone https://github.com/xiazhi88/desic-okx-agent.git
@@ -35,14 +43,6 @@ cd desic-okx-agent
 npm ci
 npm run build
 npm link
-```
-
-This registers the `desic-okx` command on the local machine.
-
-After the package is published to npm, installation will be:
-
-```bash
-npm install --global desic-okx-agent
 ```
 
 ## Quick start
