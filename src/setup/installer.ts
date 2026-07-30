@@ -17,7 +17,7 @@ export interface SetupResult {
   details: string[];
 }
 
-interface CommandResult {
+export interface CommandResult {
   ok: boolean;
   message?: string;
 }
@@ -243,13 +243,12 @@ function defaultSkillSourceDir(): string {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../skills");
 }
 
-function runExternalCommand(command: string, args: string[]): CommandResult {
+export function runExternalCommand(command: string, args: string[]): CommandResult {
   const executable = resolveExecutable(command);
-  const result = spawnSync(executable, args, {
-    encoding: "utf8",
-    windowsHide: true,
-    shell: process.platform === "win32"
-  });
+  const commandOptions = { encoding: "utf8" as const, windowsHide: true };
+  const result = process.platform === "win32"
+    ? spawnSync(process.env.ComSpec?.trim() || "cmd.exe", ["/d", "/c", "call", executable, ...args], commandOptions)
+    : spawnSync(executable, args, commandOptions);
   if (result.error) return { ok: false, message: `${command} is unavailable: ${result.error.message}` };
   if (result.status !== 0) return { ok: false, message: `${command} did not accept the MCP configuration` };
   return { ok: true };
