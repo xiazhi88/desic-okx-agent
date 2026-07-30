@@ -70,6 +70,21 @@ describe("setup installer", () => {
     expect(results.find((result) => result.target === "cursor")?.skills).toBe("not-supported");
   });
 
+  it("installs skills through Unicode Windows-style user paths", () => {
+    const directory = temporaryDirectory();
+    const source = path.join(directory, "\u6280\u80fd\u6765\u6e90");
+    const home = path.join(directory, "\u7528\u6237-\u4e91\u521b");
+    fs.mkdirSync(path.join(source, "example-skill", "agents"), { recursive: true });
+    fs.writeFileSync(path.join(source, "example-skill", "SKILL.md"), "# Example\n");
+    fs.writeFileSync(path.join(source, "example-skill", "agents", "openai.yaml"), "name: Example\n");
+
+    const results = setupTargets(["codex"], { homeDir: home, skillSourceDir: source });
+
+    expect(setupSucceeded(results)).toBe(true);
+    expect(fs.readFileSync(path.join(home, ".codex", "skills", "example-skill", "SKILL.md"), "utf8")).toBe("# Example\n");
+    expect(fs.readFileSync(path.join(home, ".codex", "skills", "example-skill", "agents", "openai.yaml"), "utf8")).toBe("name: Example\n");
+  });
+
   const windowsIt = process.platform === "win32" ? it : it.skip;
   windowsIt("returns after invoking a Windows command shim", () => {
     const directory = temporaryDirectory();

@@ -237,11 +237,26 @@ function installSkills(sourceDir: string, destinationDir: string, details: strin
       existing += 1;
       continue;
     }
-    fs.cpSync(path.join(sourceDir, skill), destination, { recursive: true, force: false });
+    copyDirectory(path.join(sourceDir, skill), destination);
     installed += 1;
   }
   details.push(`Skills: ${installed} installed, ${existing} kept in ${destinationDir}`);
   return installed === 0 ? "existing" : "configured";
+}
+
+function copyDirectory(sourceDir: string, destinationDir: string): void {
+  fs.mkdirSync(destinationDir, { recursive: true, mode: 0o700 });
+  for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+    const source = path.join(sourceDir, entry.name);
+    const destination = path.join(destinationDir, entry.name);
+    if (entry.isDirectory()) {
+      copyDirectory(source, destination);
+    } else if (entry.isFile()) {
+      fs.copyFileSync(source, destination, fs.constants.COPYFILE_EXCL);
+    } else {
+      throw new Error(`Unsupported Skill entry: ${source}`);
+    }
+  }
 }
 
 function configureSkills(sourceDir: string, destinationDir: string, details: string[]): SetupStatus {
