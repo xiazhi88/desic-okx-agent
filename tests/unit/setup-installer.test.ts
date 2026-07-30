@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { mergeMcpConfig, parseInteractiveSetupTargets, parseSetupTargets, runExternalCommand, setupSucceeded, setupTargets } from "../../src/setup/installer.js";
+import { mergeCodexMcpConfig, mergeMcpConfig, parseInteractiveSetupTargets, parseSetupTargets, runExternalCommand, setupSucceeded, setupTargets } from "../../src/setup/installer.js";
 
 const directories: string[] = [];
 afterEach(() => directories.splice(0).forEach((directory) => fs.rmSync(directory, { recursive: true, force: true })));
@@ -38,6 +38,22 @@ describe("setup installer", () => {
     expect(mergeMcpConfig(configPath, [])).toBe("existing");
   });
 
+  it("appends a Codex MCP server without changing existing TOML", () => {
+    const directory = temporaryDirectory();
+    const configPath = path.join(directory, "config.toml");
+    fs.writeFileSync(configPath, "model = \"example\"\n");
+    expect(mergeCodexMcpConfig(configPath, [])).toBe("configured");
+    expect(fs.readFileSync(configPath, "utf8")).toBe([
+      "model = \"example\"",
+      "",
+      "[mcp_servers.desic-okx]",
+      "command = \"desic-okx\"",
+      "args = [\"mcp\"]",
+      ""
+    ].join("\n"));
+    expect(mergeCodexMcpConfig(configPath, [])).toBe("existing");
+  });
+
   it("installs all compatible skills and configures JSON clients", () => {
     const home = temporaryDirectory();
     const source = path.resolve(process.cwd(), "skills");
@@ -47,6 +63,7 @@ describe("setup installer", () => {
       runCommand: () => ({ ok: true })
     });
     expect(setupSucceeded(results)).toBe(true);
+    expect(fs.readFileSync(path.join(home, ".codex", "config.toml"), "utf8")).toContain("[mcp_servers.desic-okx]");
     expect(fs.existsSync(path.join(home, ".codex", "skills", "okx-trading", "SKILL.md"))).toBe(true);
     const cursor = JSON.parse(fs.readFileSync(path.join(home, ".cursor", "mcp.json"), "utf8")) as { mcpServers: Record<string, unknown> };
     expect(cursor.mcpServers["desic-okx"]).toBeDefined();

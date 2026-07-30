@@ -125,11 +125,11 @@ function setupTarget(
   try {
     switch (target) {
       case "codex":
-        mcp = configureCommandTarget("codex", ["mcp", "add", SERVER_NAME, "--", SERVER_CONFIG.command, ...SERVER_CONFIG.args], runCommand, details);
+        mcp = mergeCodexMcpConfig(path.join(codexHomeDirectory(homeDir), "config.toml"), details);
         skills = configureSkills(skillSourceDir, skillDirectory("codex", homeDir), details);
         break;
       case "claude-code":
-        mcp = configureCommandTarget("claude", ["mcp", "add", "--transport", "stdio", "--scope", "user", SERVER_NAME, "--", SERVER_CONFIG.command, ...SERVER_CONFIG.args], runCommand, details);
+        mcp = mergeMcpConfig(path.join(homeDir, ".claude.json"), details);
         skills = configureSkills(skillSourceDir, skillDirectory("claude-code", homeDir), details);
         break;
       case "cursor":
@@ -178,6 +178,21 @@ export function mergeMcpConfig(configPath: string, details: string[]): SetupStat
   return "configured";
 }
 
+export function mergeCodexMcpConfig(configPath: string, details: string[]): SetupStatus {
+  const current = fs.existsSync(configPath) ? fs.readFileSync(configPath, "utf8") : "";
+  const section = /^\s*\[\s*mcp_servers\.(?:desic-okx|"desic-okx")\s*\]\s*(?:#.*)?$/m;
+  if (section.test(current)) {
+    details.push(`MCP already exists in ${configPath}`);
+    return "existing";
+  }
+
+  const separator = current.length === 0 || current.endsWith("\n\n") ? "" : current.endsWith("\n") ? "\n" : "\n\n";
+  const server = `[mcp_servers.${SERVER_NAME}]\ncommand = "${SERVER_CONFIG.command}"\nargs = ["mcp"]\n`;
+  writeText(configPath, `${current}${separator}${server}`);
+  details.push(`MCP configured in ${configPath}`);
+  return "configured";
+}
+
 function readMcpConfig(configPath: string): McpConfig {
   if (!fs.existsSync(configPath)) return {};
   let value: unknown;
@@ -194,9 +209,13 @@ function readMcpConfig(configPath: string): McpConfig {
 }
 
 function writeJson(targetPath: string, value: unknown): void {
+  writeText(targetPath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function writeText(targetPath: string, value: string): void {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true, mode: 0o700 });
   const temporary = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
+  fs.writeFileSync(temporary, value, { mode: 0o600 });
   fs.renameSync(temporary, targetPath);
 }
 
@@ -235,8 +254,12 @@ function configureSkills(sourceDir: string, destinationDir: string, details: str
 }
 
 function skillDirectory(target: "codex" | "claude-code", homeDir: string): string {
-  if (target === "codex") return path.join(process.env.CODEX_HOME?.trim() || path.join(homeDir, ".codex"), "skills");
+  if (target === "codex") return path.join(codexHomeDirectory(homeDir), "skills");
   return path.join(homeDir, ".claude", "skills");
+}
+
+function codexHomeDirectory(homeDir: string): string {
+  return process.env.CODEX_HOME?.trim() || path.join(homeDir, ".codex");
 }
 
 function defaultSkillSourceDir(): string {
