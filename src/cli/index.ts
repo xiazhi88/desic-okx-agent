@@ -4,6 +4,7 @@ import { accountSummaries, loadConfig, loadStoredConfig, saveConfig } from "../c
 import { CONFIG_PATH } from "../config/paths.js";
 import { OkxClient } from "../core/okx-client.js";
 import { publicError } from "../core/errors.js";
+import { PACKAGE_VERSION } from "../core/version.js";
 import { AccountService } from "../account/service.js";
 import { runMcpServer } from "../mcp/server.js";
 import { RuntimeClient } from "../runtime/client.js";
@@ -14,7 +15,7 @@ import { SetupCancelledError, chooseSetupTargets, parseSetupTargets, SETUP_TARGE
 const program = new Command()
   .name("desic-okx")
   .description("Independent Desic runtime, MCP server, CLI, and skills for OKX")
-  .version("0.1.0");
+  .version(PACKAGE_VERSION);
 
 program.command("start")
   .description("Start or reuse the local runtime")

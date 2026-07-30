@@ -7,6 +7,7 @@ import { PrivateAccountWebSockets } from "../account/private-websocket.js";
 import { OkxClient } from "../core/okx-client.js";
 import { publicError } from "../core/errors.js";
 import { sanitizeValue } from "../core/sanitize.js";
+import { PACKAGE_VERSION } from "../core/version.js";
 import { DerivativesService } from "../derivatives/service.js";
 import { IntelligenceService } from "../intelligence/service.js";
 import { MarketService } from "../market/service.js";
@@ -59,7 +60,7 @@ export class RuntimeServer {
       port: address.port,
       token: this.token,
       startedAt: Date.now(),
-      version: "0.1.0"
+      version: PACKAGE_VERSION
     };
     writeRuntimeState(this.state);
     return this.state;

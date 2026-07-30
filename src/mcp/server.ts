@@ -1,12 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { publicError } from "../core/errors.js";
+import { PACKAGE_VERSION } from "../core/version.js";
 import { RuntimeClient } from "../runtime/client.js";
 import { TOOL_CATALOG } from "../tools/catalog.js";
 
 export async function runMcpServer(): Promise<void> {
   const runtime = await RuntimeClient.connect();
-  const server = new McpServer({ name: "desic-okx-agent", version: "0.1.0" });
+  const server = new McpServer({ name: "desic-okx-agent", version: PACKAGE_VERSION });
   for (const definition of TOOL_CATALOG) {
     server.registerTool(
       definition.name,
