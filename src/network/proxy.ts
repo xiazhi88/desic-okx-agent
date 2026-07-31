@@ -49,6 +49,9 @@ export function normalizeProxyUrl(value: string): string {
     throw new Error("Proxy URL must use http:// or https://");
   }
   if (!url.hostname) throw new Error("Proxy URL must include a host");
+  if ((url.pathname && url.pathname !== "/") || url.search || url.hash) {
+    throw new Error("Proxy URL must look like http://127.0.0.1:7890");
+  }
   return url.toString().replace(/\/$/, "");
 }
 

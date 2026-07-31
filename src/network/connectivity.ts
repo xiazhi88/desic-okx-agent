@@ -8,6 +8,7 @@ export const OKX_PUBLIC_WS_URL = "wss://ws.okx.com:8443/ws/v5/public";
 export interface ConnectivityStep {
   ok: boolean;
   latencyMs: number;
+  attempts: number;
   error?: string;
 }
 
@@ -20,6 +21,8 @@ export interface ConnectivityResult {
 interface ConnectivityChecks {
   rest?: () => Promise<void>;
   websocket?: () => Promise<void>;
+  attempts?: number;
+  retryDelayMs?: number;
 }
 
 export async function checkOkxConnectivity(
@@ -27,9 +30,11 @@ export async function checkOkxConnectivity(
   timeoutMs = 6_000,
   checks: ConnectivityChecks = {}
 ): Promise<ConnectivityResult> {
+  const attempts = Math.max(1, checks.attempts ?? 3);
+  const retryDelayMs = Math.max(0, checks.retryDelayMs ?? 300);
   const [rest, websocket] = await Promise.all([
-    timedCheck(checks.rest ?? (() => checkRest(proxyUrl, timeoutMs))),
-    timedCheck(checks.websocket ?? (() => checkWebSocket(proxyUrl, timeoutMs)))
+    timedCheck(checks.rest ?? (() => checkRest(proxyUrl, timeoutMs)), attempts, retryDelayMs),
+    timedCheck(checks.websocket ?? (() => checkWebSocket(proxyUrl, timeoutMs)), attempts, retryDelayMs)
   ]);
   return { ok: rest.ok && websocket.ok, rest, websocket };
 }
@@ -68,21 +73,38 @@ async function checkWebSocket(proxyUrl: string | undefined, timeoutMs: number): 
   });
 }
 
-async function timedCheck(check: () => Promise<void>): Promise<ConnectivityStep> {
+async function timedCheck(check: () => Promise<void>, maxAttempts: number, retryDelayMs: number): Promise<ConnectivityStep> {
   const startedAt = Date.now();
-  try {
-    await check();
-    return { ok: true, latencyMs: Date.now() - startedAt };
-  } catch (error) {
-    return {
-      ok: false,
-      latencyMs: Date.now() - startedAt,
-      error: safeErrorMessage(error)
-    };
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await check();
+      return { ok: true, latencyMs: Date.now() - startedAt, attempts: attempt };
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) await delay(retryDelayMs * attempt);
+    }
   }
+  return {
+    ok: false,
+    latencyMs: Date.now() - startedAt,
+    attempts: maxAttempts,
+    error: safeErrorMessage(lastError)
+  };
 }
 
 function safeErrorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : "connection failed";
+  const messages: string[] = [];
+  let current: unknown = error;
+  for (let depth = 0; depth < 3 && current; depth += 1) {
+    const message = current instanceof Error ? current.message : String(current);
+    if (message && !messages.includes(message)) messages.push(message);
+    current = current instanceof Error ? current.cause : undefined;
+  }
+  const message = messages.join(": ") || "connection failed";
   return message.replace(/https?:\/\/[^\s/@]+@/gi, "https://***:***@").slice(0, 160);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

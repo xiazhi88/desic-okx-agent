@@ -53,5 +53,6 @@ describe("proxy resolution", () => {
   it("accepts host-only proxies and rejects unsupported protocols", () => {
     expect(normalizeProxyUrl("proxy.example.com")).toBe("http://proxy.example.com");
     expect(() => normalizeProxyUrl("socks5://127.0.0.1:1080")).toThrow("http:// or https://");
+    expect(() => normalizeProxyUrl("http/127.0.0.1:7890")).toThrow("must look like");
   });
 });

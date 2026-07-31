@@ -47,7 +47,7 @@ The terminal guide lets you select Codex, Claude Code, Cursor, VS Code / GitHub 
 
 For Codex and Claude Code, setup also installs all bundled Skills automatically. Cursor, VS Code / GitHub Copilot, and Cline receive MCP configuration only because they do not share a portable `SKILL.md` installation format.
 
-Setup then checks both OKX REST and WebSocket connectivity. When direct and detected system-proxy connections fail, it offers to test and save an HTTP proxy URL, retry, or continue without network access.
+Setup then checks both OKX REST and WebSocket connectivity. Transient TLS and network failures are retried before setup asks for action. When direct and detected system-proxy connections still fail, it offers to test and save an HTTP proxy URL, retry, or continue without network access.
 
 For automation, choose explicit targets without opening the UI:
 
@@ -95,6 +95,7 @@ desic-okx call market_get_decision_snapshot --json '{"instId":"BTC-USDT-SWAP","b
 ```
 
 The Runtime starts automatically when an MCP client or CLI call needs it. `desic-okx start` is optional.
+The stdio MCP adapter does not load the native SQLite module itself, which avoids holding the package binary open during Windows upgrades. Stop a running Runtime with `desic-okx stop` before upgrading.
 
 Useful Runtime commands:
 
@@ -283,7 +284,7 @@ Normal tests never submit orders.
 
 ## Status
 
-This repository is currently pre-release software at version `0.1.8`. Unit, packaging, Skill, and MCP transport checks are automated. Real OKX Demo trading should be validated in the target network environment before a `1.0.0` release.
+This repository is currently pre-release software at version `0.1.9`. Unit, packaging, Skill, and MCP transport checks are automated. Real OKX Demo trading should be validated in the target network environment before a `1.0.0` release.
 
 ## License
 

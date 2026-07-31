@@ -10,7 +10,6 @@ import { displayProxy, resolveProxy } from "../network/proxy.js";
 import { AccountService } from "../account/service.js";
 import { runMcpServer } from "../mcp/server.js";
 import { RuntimeClient } from "../runtime/client.js";
-import { runRuntimeServer } from "../runtime/server.js";
 import { ask, askSecret } from "./prompts.js";
 import { SetupCancelledError, parseSetupTargets, SETUP_TARGETS, setupSucceeded, setupSummary, setupTargets } from "../setup/installer.js";
 import { runSetupWizard } from "../setup/wizard.js";
@@ -28,7 +27,11 @@ program.command("start")
   });
 
 program.command("daemon", { hidden: true })
-  .action(async () => runRuntimeServer());
+  .action(async () => {
+    // Keep native SQLite out of long-lived MCP adapter processes on Windows.
+    const { runRuntimeServer } = await import("../runtime/server.js");
+    await runRuntimeServer();
+  });
 
 program.command("stop")
   .description("Stop the local runtime")

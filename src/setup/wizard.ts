@@ -138,15 +138,22 @@ function formatClientResults(results: SetupResult[]): string {
 }
 
 function formatNetworkSuccess(result: ConnectivityResult, proxy: ResolvedProxy): string {
-  return `OKX connected via ${displayProxy(proxy)} (REST ${result.rest.latencyMs}ms, WebSocket ${result.websocket.latencyMs}ms)`;
+  return `OKX connected via ${displayProxy(proxy)} (${formatSuccessfulStep("REST", result.rest)}, ${formatSuccessfulStep("WebSocket", result.websocket)})`;
 }
 
 function formatNetworkFailure(result: ConnectivityResult, proxy: ResolvedProxy): string {
-  const rest = result.rest.ok ? `REST ${result.rest.latencyMs}ms` : `REST failed: ${result.rest.error ?? "unreachable"}`;
+  const rest = result.rest.ok
+    ? formatSuccessfulStep("REST", result.rest)
+    : `REST failed after ${result.rest.attempts} attempts: ${result.rest.error ?? "unreachable"}`;
   const websocket = result.websocket.ok
-    ? `WebSocket ${result.websocket.latencyMs}ms`
-    : `WebSocket failed: ${result.websocket.error ?? "unreachable"}`;
+    ? formatSuccessfulStep("WebSocket", result.websocket)
+    : `WebSocket failed after ${result.websocket.attempts} attempts: ${result.websocket.error ?? "unreachable"}`;
   return `Could not reach OKX via ${displayProxy(proxy)}\n${rest}\n${websocket}`;
+}
+
+function formatSuccessfulStep(name: string, step: ConnectivityResult["rest"]): string {
+  const retries = step.attempts > 1 ? `, ${step.attempts} attempts` : "";
+  return `${name} ${step.latencyMs}ms${retries}`;
 }
 
 function cancelIfNeeded(value: unknown): void {
