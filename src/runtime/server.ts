@@ -9,7 +9,7 @@ import { publicError } from "../core/errors.js";
 import { sanitizeValue } from "../core/sanitize.js";
 import { PACKAGE_VERSION } from "../core/version.js";
 import { OKX_REST_BASE_URL } from "../network/connectivity.js";
-import { resolveProxy } from "../network/proxy.js";
+import { displayProxy, resolveProxy } from "../network/proxy.js";
 import { DerivativesService } from "../derivatives/service.js";
 import { IntelligenceService } from "../intelligence/service.js";
 import { MarketService } from "../market/service.js";
@@ -87,7 +87,26 @@ export class RuntimeServer {
     if (!this.authorized(request)) return this.send(response, 401, { error: { code: "AUTH", message: "Invalid runtime token" } });
     try {
       if (request.method === "GET" && request.url === "/health") {
-        return this.send(response, 200, { ok: true, pid: process.pid, instanceId: this.instanceId, startedAt: this.state?.startedAt, subscriptions: this.store.subscriptions.size });
+        const startedAt = this.state?.startedAt ?? Date.now();
+        return this.send(response, 200, {
+          ok: true,
+          version: PACKAGE_VERSION,
+          pid: process.pid,
+          instanceId: this.instanceId,
+          startedAt,
+          uptimeMs: Math.max(0, Date.now() - startedAt),
+          proxy: displayProxy(this.proxy),
+          websocket: this.websocket.status(),
+          privateWebsocket: this.privateWebSockets.status(),
+          subscriptions: this.store.status(),
+          accounts: Object.entries(this.config.accounts).map(([name, account]) => ({
+            name, environment: account.environment, default: this.config.defaultAccount === name
+          })),
+          database: this.database.status()
+        });
+      }
+      if (request.method === "GET" && request.url === "/diagnostics") {
+        return this.send(response, 200, { ok: true, database: this.database.status(true) });
       }
       if (request.method === "GET" && request.url === "/v1/tools") {
         return this.send(response, 200, { tools: TOOL_CATALOG.map(({ name, description }) => ({ name, description })) });

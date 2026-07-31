@@ -49,3 +49,9 @@ export async function askSecret(question: string): Promise<string> {
     process.stdin.on("data", onData);
   });
 }
+
+export async function askConfirm(question: string, fallback = false): Promise<boolean> {
+  const answer = (await ask(`${question} (${fallback ? "Y/n" : "y/N"})`)).toLowerCase();
+  if (!answer) return fallback;
+  return answer === "y" || answer === "yes";
+}

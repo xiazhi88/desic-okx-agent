@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { RuntimeError } from "../core/errors.js";
+import { PACKAGE_VERSION } from "../core/version.js";
 import { RUNTIME_LOCK_PATH, RUNTIME_STATE_PATH } from "../config/paths.js";
 import { isProcessRunning, readRuntimeState, type RuntimeState } from "./state.js";
 
@@ -10,7 +11,24 @@ export class RuntimeClient {
 
   static async connect(options: { start?: boolean } = { start: true }): Promise<RuntimeClient> {
     let state = readRuntimeState();
-    if (state && await healthy(state)) return new RuntimeClient(state);
+    if (state && await healthy(state)) {
+      if (options.start !== false && state.version !== PACKAGE_VERSION) {
+        const stopAccepted = await stopRuntime(state);
+        if (!stopAccepted) throw new RuntimeError("INTERNAL", `Older Runtime PID ${state.pid} could not be contacted safely`);
+        await waitUntilStopped(state.pid, 5_000);
+        if (isProcessRunning(state.pid)) {
+          try { process.kill(state.pid, "SIGTERM"); } catch {}
+          await waitUntilStopped(state.pid, 2_000);
+        }
+        if (isProcessRunning(state.pid)) {
+          throw new RuntimeError("INTERNAL", `Older Runtime PID ${state.pid} could not be stopped`);
+        }
+        clearDeadRuntimeFiles(state);
+        state = undefined;
+      } else {
+        return new RuntimeClient(state);
+      }
+    }
     clearDeadRuntimeFiles(state);
     if (options.start === false) throw new RuntimeError("NOT_FOUND", "OKX runtime is not running");
     startDetachedRuntime();
@@ -30,6 +48,10 @@ export class RuntimeClient {
   async tools(): Promise<Array<{ name: string; description: string }>> {
     const response = await this.request("GET", "/v1/tools") as { tools: Array<{ name: string; description: string }> };
     return response.tools;
+  }
+
+  async diagnostics(): Promise<Record<string, unknown>> {
+    return this.request("GET", "/diagnostics") as Promise<Record<string, unknown>>;
   }
 
   async call(name: string, input: unknown = {}): Promise<unknown> {
@@ -60,6 +82,25 @@ export class RuntimeClient {
       throw new RuntimeError("NETWORK", error instanceof Error ? error.message : "Runtime request failed", true);
     }
   }
+}
+
+async function stopRuntime(state: RuntimeState): Promise<boolean> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${state.port}/stop`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${state.token}`, "content-type": "application/json" },
+      body: "{}",
+      signal: AbortSignal.timeout(2_000)
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function waitUntilStopped(pid: number, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline && isProcessRunning(pid)) await delay(50);
 }
 
 async function healthy(state: RuntimeState): Promise<boolean> {

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { mergeCodexMcpConfig, mergeMcpConfig, parseSetupTargets, runExternalCommand, setupSucceeded, setupTargets } from "../../src/setup/installer.js";
+import { mergeCodexMcpConfig, mergeMcpConfig, parseSetupTargets, runExternalCommand, setupSucceeded, setupTargets, syncSkills } from "../../src/setup/installer.js";
 
 const directories: string[] = [];
 afterEach(() => directories.splice(0).forEach((directory) => fs.rmSync(directory, { recursive: true, force: true })));
@@ -75,6 +75,24 @@ describe("setup installer", () => {
     expect(setupSucceeded(results)).toBe(true);
     expect(fs.readFileSync(path.join(home, ".codex", "skills", "example-skill", "SKILL.md"), "utf8")).toBe("# Example\n");
     expect(fs.readFileSync(path.join(home, ".codex", "skills", "example-skill", "agents", "openai.yaml"), "utf8")).toBe("name: Example\n");
+  });
+
+  it("backs up changed Skills before synchronizing bundled updates", () => {
+    const home = temporaryDirectory();
+    const source = path.resolve(process.cwd(), "skills");
+    setupTargets(["codex"], { homeDir: home, skillSourceDir: source });
+    const skillFile = path.join(home, ".codex", "skills", "okx-market-analysis", "SKILL.md");
+    fs.appendFileSync(skillFile, "\nUser customization\n");
+
+    const preview = syncSkills(["codex"], { homeDir: home, skillSourceDir: source, dryRun: true })[0];
+    expect(preview?.updated).toBe(1);
+    expect(fs.readFileSync(skillFile, "utf8")).toContain("User customization");
+
+    const result = syncSkills(["codex"], { homeDir: home, skillSourceDir: source })[0];
+    expect(result?.updated).toBe(1);
+    expect(result?.backupDirectory).toBeDefined();
+    expect(fs.readFileSync(skillFile, "utf8")).not.toContain("User customization");
+    expect(fs.readFileSync(path.join(result!.backupDirectory!, "okx-market-analysis", "SKILL.md"), "utf8")).toContain("User customization");
   });
 
   const windowsIt = process.platform === "win32" ? it : it.skip;

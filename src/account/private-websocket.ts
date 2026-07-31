@@ -13,6 +13,9 @@ interface Connection {
   attempt: number;
   reconnect?: NodeJS.Timeout;
   heartbeat?: NodeJS.Timeout;
+  authenticated: boolean;
+  lastMessageAt?: number;
+  lastError?: string;
 }
 
 export class PrivateAccountWebSockets {
@@ -20,7 +23,9 @@ export class PrivateAccountWebSockets {
   private readonly agent?: HttpsProxyAgent<string>;
 
   constructor(config: RuntimeConfig, private readonly store: AccountStore) {
-    this.connections = Object.entries(config.accounts).map(([name, account]) => ({ account: { name, ...account }, stopping: false, attempt: 0 }));
+    this.connections = Object.entries(config.accounts).map(([name, account]) => ({
+      account: { name, ...account }, stopping: false, attempt: 0, authenticated: false
+    }));
     const proxyUrl = resolveProxy(config.proxy.url).url;
     this.agent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
   }
@@ -38,6 +43,19 @@ export class PrivateAccountWebSockets {
     }
   }
 
+  status(): Array<Record<string, unknown>> {
+    const states = ["connecting", "open", "closing", "closed"];
+    return this.connections.map((connection) => ({
+      account: connection.account.name,
+      environment: connection.account.environment,
+      state: connection.socket ? states[connection.socket.readyState] ?? "unknown" : "not-started",
+      authenticated: connection.authenticated,
+      reconnectAttempt: connection.attempt,
+      lastMessageAt: connection.lastMessageAt ?? null,
+      lastError: connection.lastError ?? null
+    }));
+  }
+
   private connect(connection: Connection): void {
     if (connection.stopping) return;
     const url = connection.account.environment === "demo"
@@ -45,10 +63,14 @@ export class PrivateAccountWebSockets {
       : "wss://ws.okx.com:8443/ws/v5/private";
     const socket = new WebSocket(url, this.agent ? { agent: this.agent } : undefined);
     connection.socket = socket;
+    connection.authenticated = false;
     socket.on("open", () => socket.send(JSON.stringify({ op: "login", args: [loginArgs(connection.account)] })));
     socket.on("message", (buffer) => this.message(connection, buffer.toString()));
     socket.on("close", () => this.reconnect(connection));
-    socket.on("error", () => socket.close());
+    socket.on("error", (error) => {
+      connection.lastError = error.message;
+      socket.close();
+    });
   }
 
   private reconnect(connection: Connection): void {
@@ -65,10 +87,13 @@ export class PrivateAccountWebSockets {
 
   private message(connection: Connection, text: string): void {
     if (text === "pong") return;
+    connection.lastMessageAt = Date.now();
     let message: Record<string, unknown>;
     try { message = JSON.parse(text) as Record<string, unknown>; } catch { return; }
     if (message.event === "login" && message.code === "0") {
       connection.attempt = 0;
+      connection.authenticated = true;
+      connection.lastError = undefined;
       connection.socket?.send(JSON.stringify({
         op: "subscribe",
         args: [
@@ -83,6 +108,10 @@ export class PrivateAccountWebSockets {
       }, 20_000);
       connection.heartbeat.unref();
       return;
+    }
+    if (message.event === "login" && message.code !== "0") {
+      connection.authenticated = false;
+      connection.lastError = String(message.msg ?? `Login failed with code ${String(message.code ?? "unknown")}`);
     }
     const arg = message.arg as Record<string, unknown> | undefined;
     const data = Array.isArray(message.data) ? message.data as Array<Record<string, unknown>> : [];

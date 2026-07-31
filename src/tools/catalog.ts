@@ -253,7 +253,7 @@ function tool(name: string, description: string, schema: z.ZodObject, execute: T
 }
 
 function experimentalTool(name: string, description: string, schema: z.ZodObject, execute: ToolDefinition["execute"]): ToolDefinition {
-  return tool(name, `Experimental OKX intelligence capability. ${description}`, schema, execute);
+  return tool(name, `Experimental OKX intelligence capability. Remote data requires a configured live OKX account; read-only permission is sufficient. ${description}`, schema, execute);
 }
 
 function optionalString(value: unknown): string | undefined {

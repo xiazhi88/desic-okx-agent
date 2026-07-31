@@ -65,6 +65,28 @@ export class MarketStore {
     this.subscriptions.delete(instId);
   }
 
+  status(now = Date.now()): Array<Record<string, unknown>> {
+    return [...this.subscriptions.entries()].map(([instId, subscription]) => {
+      const candleAges = [...this.candles.entries()]
+        .filter(([key]) => key.startsWith(`${instId}:`))
+        .map(([, value]) => now - value.receivedAt);
+      return {
+        instId,
+        prewarmed: subscription.prewarmed,
+        idleMs: Math.max(0, now - subscription.lastAccessAt),
+        ageMs: {
+          ticker: valueAge(this.tickers.get(instId), now),
+          orderBook: valueAge(this.books.get(instId), now),
+          trades: valueAge(this.trades.get(instId), now),
+          fundingRate: valueAge(this.fundingRates.get(instId), now),
+          markPrice: valueAge(this.markPrices.get(instId), now),
+          openInterest: valueAge(this.openInterest.get(instId), now),
+          candles: candleAges.length ? Math.min(...candleAges) : null
+        }
+      };
+    });
+  }
+
   setTicker(instId: string, value: RawMarketRow, source: TimedValue<unknown>["source"] = "websocket"): void {
     this.tickers.set(instId, timed(value, value.ts, source));
   }
@@ -148,6 +170,10 @@ export class MarketStore {
     this.mutableBooks.set(instId, mutable);
     this.books.set(instId, timed(materializeBook(mutable, this.bookDepth), book.ts, source));
   }
+}
+
+function valueAge(value: TimedValue<unknown> | undefined, now: number): number | null {
+  return value ? Math.max(0, now - value.receivedAt) : null;
 }
 
 export function candleKey(instId: string, bar: string): string {

@@ -5,6 +5,8 @@ description: Analyze OKX public trader rankings, performance, positions, histori
 
 # OKX Smart Money Analysis
 
+Remote Smart Money tools require a configured live OKX account. Read-only API permission is sufficient. Local history is available only after data has previously been persisted.
+
 1. Define the period, sort field, filters, and sample size before comparing traders.
 2. Use performance to shortlist; inspect current positions and history before interpreting behavior.
 3. Separate current positions, closed-position history, public order history, signal overview, and signal trend.

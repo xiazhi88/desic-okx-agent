@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -25,6 +26,23 @@ interface SetupOptions {
   homeDir?: string;
   skillSourceDir?: string;
   runCommand?: (command: string, args: string[]) => CommandResult;
+}
+
+export interface SkillSyncResult {
+  target: "codex" | "claude-code";
+  destination: string;
+  installed: number;
+  updated: number;
+  unchanged: number;
+  backupDirectory?: string;
+  dryRun: boolean;
+}
+
+export interface SetupInspection {
+  target: SetupTarget;
+  mcpConfigured: boolean | null;
+  skillsInstalled: number | null;
+  details: string;
 }
 
 interface McpConfig {
@@ -79,11 +97,11 @@ function setupTarget(
     switch (target) {
       case "codex":
         mcp = mergeCodexMcpConfig(path.join(codexHomeDirectory(homeDir), "config.toml"), details);
-        skills = configureSkills(skillSourceDir, skillDirectory("codex", homeDir), details);
+        skills = configureSkills("codex", skillSourceDir, skillDirectory("codex", homeDir), details);
         break;
       case "claude-code":
         mcp = mergeMcpConfig(path.join(homeDir, ".claude.json"), details);
-        skills = configureSkills(skillSourceDir, skillDirectory("claude-code", homeDir), details);
+        skills = configureSkills("claude-code", skillSourceDir, skillDirectory("claude-code", homeDir), details);
         break;
       case "cursor":
         mcp = mergeMcpConfig(path.join(homeDir, ".cursor", "mcp.json"), details);
@@ -172,29 +190,11 @@ function writeText(targetPath: string, value: string): void {
   fs.renameSync(temporary, targetPath);
 }
 
-function installSkills(sourceDir: string, destinationDir: string, details: string[]): SetupStatus {
-  if (!fs.existsSync(sourceDir)) {
-    details.push(`Skills are unavailable at ${sourceDir}`);
-    return "failed";
-  }
-  fs.mkdirSync(destinationDir, { recursive: true, mode: 0o700 });
-  const skills = fs.readdirSync(sourceDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(sourceDir, entry.name, "SKILL.md")))
-    .map((entry) => entry.name)
-    .sort();
-  let installed = 0;
-  let existing = 0;
-  for (const skill of skills) {
-    const destination = path.join(destinationDir, skill);
-    if (fs.existsSync(destination)) {
-      existing += 1;
-      continue;
-    }
-    copyDirectory(path.join(sourceDir, skill), destination);
-    installed += 1;
-  }
-  details.push(`Skills: ${installed} installed, ${existing} kept in ${destinationDir}`);
-  return installed === 0 ? "existing" : "configured";
+function installSkills(target: "codex" | "claude-code", sourceDir: string, destinationDir: string, details: string[]): SetupStatus {
+  const result = syncSkillDirectory(target, sourceDir, destinationDir, false);
+  details.push(`Skills: ${result.installed} installed, ${result.updated} updated, ${result.unchanged} current in ${destinationDir}`);
+  if (result.backupDirectory) details.push(`Previous Skills backed up in ${result.backupDirectory}`);
+  return result.installed === 0 && result.updated === 0 ? "existing" : "configured";
 }
 
 function copyDirectory(sourceDir: string, destinationDir: string): void {
@@ -212,9 +212,9 @@ function copyDirectory(sourceDir: string, destinationDir: string): void {
   }
 }
 
-function configureSkills(sourceDir: string, destinationDir: string, details: string[]): SetupStatus {
+function configureSkills(target: "codex" | "claude-code", sourceDir: string, destinationDir: string, details: string[]): SetupStatus {
   try {
-    return installSkills(sourceDir, destinationDir, details);
+    return installSkills(target, sourceDir, destinationDir, details);
   } catch (error) {
     details.push(error instanceof Error ? error.message : "Could not install skills");
     return "failed";
@@ -232,6 +232,111 @@ function codexHomeDirectory(homeDir: string): string {
 
 function defaultSkillSourceDir(): string {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../skills");
+}
+
+export function syncSkills(
+  targets: Array<"codex" | "claude-code"> = ["codex", "claude-code"],
+  options: { homeDir?: string; skillSourceDir?: string; dryRun?: boolean } = {}
+): SkillSyncResult[] {
+  const homeDir = options.homeDir ?? os.homedir();
+  const sourceDir = options.skillSourceDir ?? defaultSkillSourceDir();
+  return targets.map((target) => syncSkillDirectory(target, sourceDir, skillDirectory(target, homeDir), options.dryRun ?? false));
+}
+
+export function inspectSetupTargets(homeDir = os.homedir()): SetupInspection[] {
+  return SETUP_TARGETS.map((target) => {
+    if (target === "vscode") return { target, mcpConfigured: null, skillsInstalled: null, details: "Use VS Code to inspect configured MCP servers" };
+    if (target === "codex") {
+      const configPath = path.join(codexHomeDirectory(homeDir), "config.toml");
+      const content = readText(configPath);
+      return inspection(target, /^\s*\[\s*mcp_servers\.(?:desic-okx|"desic-okx")\s*\]/m.test(content), skillDirectory("codex", homeDir), configPath);
+    }
+    const configPath = target === "claude-code" ? path.join(homeDir, ".claude.json")
+      : target === "cursor" ? path.join(homeDir, ".cursor", "mcp.json")
+        : path.join(homeDir, ".cline", "data", "settings", "mcp.json");
+    return inspection(target, jsonHasServer(configPath), target === "claude-code" ? skillDirectory("claude-code", homeDir) : undefined, configPath);
+  });
+}
+
+function syncSkillDirectory(
+  target: "codex" | "claude-code",
+  sourceDir: string,
+  destinationDir: string,
+  dryRun: boolean
+): SkillSyncResult {
+  if (!fs.existsSync(sourceDir)) throw new Error(`Skills are unavailable at ${sourceDir}`);
+  const skills = bundledSkillNames(sourceDir);
+  let installed = 0;
+  let updated = 0;
+  let unchanged = 0;
+  let backupDirectory: string | undefined;
+  if (!dryRun) fs.mkdirSync(destinationDir, { recursive: true, mode: 0o700 });
+  for (const skill of skills) {
+    const source = path.join(sourceDir, skill);
+    const destination = path.join(destinationDir, skill);
+    if (!fs.existsSync(destination)) {
+      installed += 1;
+      if (!dryRun) copyDirectory(source, destination);
+      continue;
+    }
+    if (directoryDigest(source) === directoryDigest(destination)) {
+      unchanged += 1;
+      continue;
+    }
+    updated += 1;
+    if (dryRun) continue;
+    backupDirectory ??= path.join(destinationDir, ".desic-okx-backups", timestampDirectory());
+    fs.mkdirSync(backupDirectory, { recursive: true, mode: 0o700 });
+    fs.renameSync(destination, path.join(backupDirectory, skill));
+    copyDirectory(source, destination);
+  }
+  return { target, destination: destinationDir, installed, updated, unchanged, ...(backupDirectory ? { backupDirectory } : {}), dryRun };
+}
+
+function bundledSkillNames(sourceDir: string): string[] {
+  return fs.readdirSync(sourceDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(sourceDir, entry.name, "SKILL.md")))
+    .map((entry) => entry.name)
+    .sort();
+}
+
+function directoryDigest(directory: string): string {
+  const hash = crypto.createHash("sha256");
+  const visit = (current: string, relative = ""): void => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const nextRelative = path.join(relative, entry.name);
+      const absolute = path.join(current, entry.name);
+      if (entry.isDirectory()) visit(absolute, nextRelative);
+      else if (entry.isFile()) {
+        hash.update(nextRelative.replaceAll(path.sep, "/"));
+        hash.update(fs.readFileSync(absolute));
+      }
+    }
+  };
+  visit(directory);
+  return hash.digest("hex");
+}
+
+function timestampDirectory(): string {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+function inspection(target: SetupTarget, mcpConfigured: boolean, skillsDir: string | undefined, configPath: string): SetupInspection {
+  const skillsInstalled = skillsDir && fs.existsSync(skillsDir)
+    ? fs.readdirSync(skillsDir, { withFileTypes: true }).filter((entry) => entry.isDirectory() && fs.existsSync(path.join(skillsDir, entry.name, "SKILL.md"))).length
+    : skillsDir ? 0 : null;
+  return { target, mcpConfigured, skillsInstalled, details: configPath };
+}
+
+function jsonHasServer(configPath: string): boolean {
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8")) as McpConfig;
+    return Boolean(config.mcpServers && SERVER_NAME in config.mcpServers);
+  } catch { return false; }
+}
+
+function readText(filePath: string): string {
+  try { return fs.readFileSync(filePath, "utf8"); } catch { return ""; }
 }
 
 export function runExternalCommand(command: string, args: string[]): CommandResult {

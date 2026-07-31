@@ -14,8 +14,10 @@ export interface ExecutionRecord {
 
 export class RuntimeDatabase {
   readonly db: Database.Database;
+  private readonly databasePath: string;
 
   constructor(databasePath = DATABASE_PATH) {
+    this.databasePath = databasePath;
     fs.mkdirSync(path.dirname(databasePath), { recursive: true, mode: 0o700 });
     this.db = new Database(databasePath);
     this.db.pragma("journal_mode = WAL");
@@ -25,6 +27,20 @@ export class RuntimeDatabase {
 
   close(): void {
     this.db.close();
+  }
+
+  status(checkIntegrity = false): Record<string, unknown> {
+    const counts = Object.fromEntries(["candles", "intelligence", "executions"].map((table) => {
+      const row = this.db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number };
+      return [table, Number(row.count)];
+    }));
+    return {
+      path: this.databasePath,
+      sizeBytes: fileSize(this.databasePath),
+      walSizeBytes: fileSize(`${this.databasePath}-wal`),
+      counts,
+      ...(checkIntegrity ? { integrity: String(this.db.pragma("quick_check", { simple: true })) } : {})
+    };
   }
 
   saveCandles(instId: string, bar: string, candles: unknown[]): void {
@@ -128,4 +144,8 @@ export class RuntimeDatabase {
       );
     `);
   }
+}
+
+function fileSize(filePath: string): number {
+  try { return fs.statSync(filePath).size; } catch { return 0; }
 }

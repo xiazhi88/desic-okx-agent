@@ -60,7 +60,7 @@ desic-okx setup --targets codex --yes --skip-network-check
 
 Non-interactive setup exits with an error when the network check fails. Use `--skip-network-check` only when connectivity will be configured later.
 
-Restart the selected client after setup. The MCP server starts the local Runtime automatically when it is first used.
+Restart the selected client after setup. The MCP server starts the local Runtime automatically when it is first used. Run `desic-okx doctor` at any time to verify the package, client configuration, Skills, network, Runtime, SQLite, public market data, and configured accounts.
 
 ## Ask an AI to install it
 
@@ -71,7 +71,7 @@ Install Desic OKX Agent for me. Check that Node.js is at least 22.12, then run:
 npm install --global desic-okx-agent
 desic-okx setup --targets codex --yes
 
-Verify the installation with `desic-okx status` and `desic-okx tools`. Do not ask for or configure any OKX API credentials. Confirm that public market tools are ready to use.
+Verify the installation with `desic-okx doctor`. Do not ask for or configure any OKX API credentials. Confirm that public market tools are ready to use.
 ```
 
 For development from source:
@@ -101,9 +101,14 @@ Useful Runtime commands:
 
 ```bash
 desic-okx status
+desic-okx status --json
+desic-okx doctor
 desic-okx tools
+desic-okx tool market_get_decision_snapshot
 desic-okx stop
 ```
+
+`status` shows the Runtime version, uptime, redacted proxy route, public/business/private WebSocket state, subscriptions and data ages, accounts, and database size. `doctor` performs active network, SQLite, market-data, account, MCP-client, Skill, and package checks. Both support machine-readable JSON.
 
 ## Connect Codex
 
@@ -169,6 +174,14 @@ Included skills:
 
 Restart the client if a newly installed skill does not appear.
 
+Setup synchronizes bundled Skills on every run. Identical Skills are left untouched. Changed copies are backed up before the bundled version is installed. They can also be inspected or synchronized explicitly:
+
+```bash
+desic-okx skills status
+desic-okx skills sync
+desic-okx skills sync --targets codex --dry-run
+```
+
 ## Configure an OKX account
 
 Public tools work without credentials. Account and trading tools use a named account alias and never accept credentials as tool arguments.
@@ -178,8 +191,14 @@ Add and verify an account interactively:
 ```bash
 desic-okx account add --name demo --environment demo
 desic-okx account verify --name demo
+desic-okx account verify --all
 desic-okx account list
+desic-okx account set-default demo
+desic-okx account rename demo demo-primary
+desic-okx account edit demo-primary
 ```
+
+`account add` and `account edit` verify the credentials with OKX before writing the configuration file. Editing credentials remains interactive so secrets are not passed as command-line arguments.
 
 The credential prompts hide input. Credentials are stored in the system configuration directory in `config.json`; Unix permissions are set to `0600`. The active path is shown by:
 
@@ -198,6 +217,29 @@ OKX_ENVIRONMENT=demo|live
 ```
 
 The three credential values must be provided together. Whether an account can trade is determined by the permissions assigned to its API key in OKX.
+
+## Tool help
+
+The MCP schemas are available to AI clients. Humans can inspect the same schema, account requirement, and a runnable example from the CLI:
+
+```bash
+desic-okx tool news_search
+desic-okx tool trade_place_order --json
+```
+
+Remote News and Smart Money tools require a configured **live OKX account**. Read-only API permission is sufficient. Local News event and history tools can use previously persisted data where available. This requirement is included in the MCP tool descriptions and relevant Skills.
+
+## Update
+
+Check or install the latest npm release:
+
+```bash
+desic-okx update --check
+desic-okx update
+desic-okx update --yes
+```
+
+The updater checks the official npm registry, stops the Runtime, waits for the native SQLite module to be released, and then performs the global npm update. It synchronizes Skills for detected installations and runs Doctor afterward. When a newer CLI or MCP adapter encounters an older running Runtime, it automatically replaces it before handling requests.
 
 ## Proxy
 
@@ -256,7 +298,7 @@ Use an OKX Demo account first. Trading software can lose money, and the project 
 
 ## Experimental intelligence
 
-News and Smart Money use upstream interfaces that may change without notice. Compatibility failures return `CAPABILITY_UNAVAILABLE`, or locally persisted history when available. A failure in these modules does not disable market, account, or trading tools.
+Remote News and Smart Money use upstream interfaces that may change without notice and require a configured live OKX account; read-only API permission is sufficient. Compatibility failures return `CAPABILITY_UNAVAILABLE`, or locally persisted history when available. A failure in these modules does not disable market, account, or trading tools.
 
 ## Development
 
@@ -284,7 +326,7 @@ Normal tests never submit orders.
 
 ## Status
 
-This repository is currently pre-release software at version `0.1.9`. Unit, packaging, Skill, and MCP transport checks are automated. Real OKX Demo trading should be validated in the target network environment before a `1.0.0` release.
+This repository is currently pre-release software at version `0.2.0`. Unit, packaging, Skill, and MCP transport checks are automated. Real OKX Demo trading should be validated in the target network environment before a `1.0.0` release.
 
 ## License
 

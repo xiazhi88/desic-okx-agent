@@ -5,6 +5,8 @@ description: Research OKX news, sources, coin sentiment, economic events, cluste
 
 # OKX News Intelligence
 
+Remote News, source, sentiment, calendar, and briefing tools require a configured live OKX account. Read-only API permission is sufficient. Local event and history tools can use previously persisted data when available.
+
 1. Use `news_search` for a targeted question and `news_list` for current coverage.
 2. Read details when a headline is material; record source, publication time, language, and freshness.
 3. Use sentiment trends and rankings as aggregated observations, not as factual confirmation of an event.

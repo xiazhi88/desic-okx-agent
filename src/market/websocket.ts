@@ -63,6 +63,13 @@ export class MarketWebSocket {
     }
   }
 
+  status(): Record<string, unknown> {
+    return {
+      public: socketStatus(this.socket, this.reconnectAttempt),
+      business: socketStatus(this.businessSocket, this.businessReconnectAttempt)
+    };
+  }
+
   private connect(): void {
     if (this.stopping) return;
     const socket = new WebSocket("wss://ws.okx.com:8443/ws/v5/public", this.agent ? { agent: this.agent } : undefined);
@@ -190,6 +197,14 @@ export class MarketWebSocket {
       }
     }
   }
+}
+
+function socketStatus(socket: WebSocket | undefined, reconnectAttempt: number): Record<string, unknown> {
+  const states = ["connecting", "open", "closing", "closed"];
+  return {
+    state: socket ? states[socket.readyState] ?? "unknown" : "not-started",
+    reconnectAttempt
+  };
 }
 
 function publicSubscriptionArgs(instId: string): Array<Record<string, string>> {

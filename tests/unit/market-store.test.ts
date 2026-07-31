@@ -44,4 +44,14 @@ describe("MarketStore", () => {
     vi.advanceTimersByTime(15 * 60_000 + 1);
     expect(store.idleSubscriptions(15 * 60_000)).toEqual(["SOL-USDT-SWAP"]);
   });
+
+  it("reports subscription freshness without exposing market payloads", () => {
+    const store = new MarketStore(100, 50);
+    store.touch("BTC-USDT-SWAP", true);
+    store.setTicker("BTC-USDT-SWAP", { instId: "BTC-USDT-SWAP", last: "100", ts: String(Date.now()) });
+    const [status] = store.status();
+    expect(status).toMatchObject({ instId: "BTC-USDT-SWAP", prewarmed: true });
+    expect((status?.ageMs as Record<string, unknown>).ticker).toEqual(expect.any(Number));
+    expect(JSON.stringify(status)).not.toContain('"last":"100"');
+  });
 });
