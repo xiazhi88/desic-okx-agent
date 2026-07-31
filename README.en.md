@@ -7,6 +7,9 @@ An independent local OKX Runtime, MCP server, CLI, and reusable agent Skills for
 > [!IMPORTANT]
 > Desic OKX Agent is an independent community project. It is not affiliated with, endorsed by, or an official product of OKX.
 
+> [!NOTE]
+> All trading tools in this project support OKX perpetual swaps only (`instId` must end in `-SWAP`). Spot, dated futures, options, and all other instrument types are not supported for trading. Public market data and account inspection are unaffected.
+
 ## Installation
 
 Requires Node.js 22.12 or newer and network access to OKX, either directly or through an HTTP/HTTPS proxy.
@@ -68,7 +71,7 @@ Grant only the permissions needed for your use case:
 | Public market data, candles, books, derivatives analysis | No | None |
 | Balances, positions, orders, fills, and risk summaries | Yes | Read permission |
 | Remote News and Smart Money | Yes | A `live` account; read permission is sufficient |
-| Place, amend, cancel, close, and leverage operations | Yes | Trade permission on the OKX API key |
+| Perpetual swap place, amend, cancel, close, and leverage operations | Yes | Trade permission on the OKX API key; `*-SWAP` only |
 
 This project has no withdrawal, deposit, transfer, asset-movement, or API-key-management tools. Those permissions are not needed. Test trading workflows with an OKX Demo account first, and configure an IP allowlist in OKX according to your security policy.
 
@@ -141,7 +144,7 @@ desic-okx update --check
 - Time-aligned decision snapshots with freshness, exchange timestamps, and consistency metadata
 - Public market data, indicators, scanning, and public derivatives analysis
 - Account balances, positions, orders, fills, bills, and risk summaries
-- Ordinary orders, algo orders, leverage, amend, cancel, and close-position operations
+- Perpetual-swap-only ordinary orders, algo orders, leverage, amend, cancel, and close-position operations
 - Experimental News and Smart Money capabilities with SQLite history fallback
 - SQLite WAL persistence for closed candles, intelligence history, derived events, and execution records
 

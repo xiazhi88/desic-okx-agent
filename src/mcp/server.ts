@@ -5,9 +5,18 @@ import { PACKAGE_VERSION } from "../core/version.js";
 import { RuntimeClient } from "../runtime/client.js";
 import { TOOL_CATALOG } from "../tools/catalog.js";
 
+export const MCP_INSTRUCTIONS = [
+  "Desic OKX Agent provides public market data, account inspection, intelligence, and trading tools.",
+  "All trade_* tools support OKX perpetual swap instruments whose instId ends with '-SWAP' only.",
+  "Never use trade_* tools for spot, dated futures, options, or any other instrument type."
+].join(" ");
+
 export async function runMcpServer(): Promise<void> {
   const runtime = await RuntimeClient.connect();
-  const server = new McpServer({ name: "desic-okx-agent", version: PACKAGE_VERSION });
+  const server = new McpServer(
+    { name: "desic-okx-agent", version: PACKAGE_VERSION },
+    { instructions: MCP_INSTRUCTIONS }
+  );
   for (const definition of TOOL_CATALOG) {
     server.registerTool(
       definition.name,

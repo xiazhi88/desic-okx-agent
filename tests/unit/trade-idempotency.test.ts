@@ -10,6 +10,18 @@ const databases: RuntimeDatabase[] = [];
 afterEach(() => databases.splice(0).forEach((database) => database.close()));
 
 describe("trade execution idempotency", () => {
+  it("rejects non-perpetual instruments before reading market data", async () => {
+    const database = new RuntimeDatabase(":memory:");
+    databases.push(database);
+    const market = { getInstrument: vi.fn(), getTicker: vi.fn() } as unknown as MarketService;
+    const service = new TradeService({} as OkxClient, {} as AccountService, market, database);
+
+    await expect(service.evaluatePlan({ instId: "BTC-USDT", side: "buy", size: "1" }))
+      .rejects.toMatchObject({ code: "VALIDATION" });
+    expect(market.getInstrument).not.toHaveBeenCalled();
+    expect(market.getTicker).not.toHaveBeenCalled();
+  });
+
   it("replays an accepted response without submitting twice", async () => {
     const database = new RuntimeDatabase(":memory:");
     databases.push(database);

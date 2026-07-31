@@ -21,6 +21,10 @@ export interface ToolDefinition {
 }
 
 const InstId = z.string().min(1).describe("OKX instrument ID, for example BTC-USDT-SWAP");
+const SwapInstId = z.string()
+  .min(1)
+  .refine((value) => value.endsWith("-SWAP"), "Trading tools support only OKX perpetual swap instruments ending in -SWAP")
+  .describe("OKX perpetual swap instrument ID ending in -SWAP, for example BTC-USDT-SWAP");
 const Account = z.string().min(1).optional().describe("Configured account alias; the default account is used when omitted");
 const ExecutionKey = z.string().min(1).max(128).describe("Stable idempotency key chosen by the caller");
 const Limit = z.number().int().positive().optional();
@@ -108,7 +112,7 @@ const SmartSchema = z.strictObject({
 });
 
 const EvaluateSchema = z.strictObject({
-  instId: InstId,
+  instId: SwapInstId,
   side: z.enum(["buy", "sell"]),
   size: z.string().min(1),
   price: z.string().optional(),
@@ -118,7 +122,7 @@ const EvaluateSchema = z.strictObject({
 const PlaceOrderSchema = z.strictObject({
   account: Account,
   executionKey: ExecutionKey,
-  instId: InstId,
+  instId: SwapInstId,
   tdMode: z.enum(["cash", "cross", "isolated"]),
   side: z.enum(["buy", "sell"]),
   posSide: z.enum(["net", "long", "short"]).optional(),
@@ -133,7 +137,7 @@ const BatchOrderItemSchema = PlaceOrderSchema.omit({ account: true, executionKey
 const PlaceAlgoSchema = z.strictObject({
   account: Account,
   executionKey: ExecutionKey,
-  instId: InstId,
+  instId: SwapInstId,
   tdMode: z.enum(["cash", "cross", "isolated"]),
   side: z.enum(["buy", "sell"]),
   posSide: z.enum(["net", "long", "short"]).optional(),
@@ -179,20 +183,20 @@ export const TOOL_CATALOG: ToolDefinition[] = [
   tool("account_get_bills", "Read recent or archived account bills.", HistorySchema, (c, a) => c.account.getBills(optionalString(a.account), without(a, "account"))),
   tool("account_get_risk", "Calculate a generic risk summary from current account facts.", AccountOnlySchema, (c, a) => c.account.getRisk(optionalString(a.account))),
 
-  tool("trade_evaluate_plan", "Calculate contract quantity, notional, margin, and stop risk without writing.", EvaluateSchema, (c, a) => c.trade.evaluatePlan(a as never)),
-  tool("trade_precheck_order", "Validate an ordinary order against instrument, account, and market facts.", PlaceOrderSchema, (c, a) => c.trade.precheck(a as unknown as PlaceOrderInput)),
-  tool("trade_set_leverage", "Set leverage for an OKX instrument and margin mode.", z.strictObject({ account: Account, executionKey: ExecutionKey, instId: InstId, lever: z.string().min(1), mgnMode: z.enum(["cross", "isolated"]), posSide: z.string().optional() }), (c, a) => c.trade.setLeverage(a as never)),
-  tool("trade_place_order", "Submit an idempotent ordinary OKX order after precheck.", PlaceOrderSchema, (c, a) => c.trade.placeOrder(a as unknown as PlaceOrderInput)),
-  tool("trade_place_batch_orders", "Submit up to twenty prechecked ordinary OKX orders idempotently.", z.strictObject({ account: Account, executionKey: ExecutionKey, orders: z.array(BatchOrderItemSchema).min(1).max(20) }), (c, a) => c.trade.placeBatchOrders(a as never)),
-  tool("trade_amend_order", "Amend an existing ordinary order idempotently.", z.strictObject({ account: Account, executionKey: ExecutionKey, instId: InstId, ordId: z.string().optional(), clOrdId: z.string().optional(), newSize: z.string().optional(), newPrice: z.string().optional() }), (c, a) => c.trade.amendOrder(a as never)),
-  tool("trade_cancel_order", "Cancel an existing ordinary order idempotently.", z.strictObject({ account: Account, executionKey: ExecutionKey, instId: InstId, ordId: z.string().optional(), clOrdId: z.string().optional() }), (c, a) => c.trade.cancelOrder(a as never)),
-  tool("trade_precheck_algo_order", "Validate an algo order against instrument, account, and market facts.", PlaceAlgoSchema, (c, a) => c.trade.precheckAlgo(a as unknown as PlaceAlgoOrderInput)),
-  tool("trade_place_algo_order", "Submit an idempotent prechecked trigger, conditional, or trailing order.", PlaceAlgoSchema, (c, a) => c.trade.placeAlgoOrder(a as unknown as PlaceAlgoOrderInput)),
-  tool("trade_amend_algo_order", "Amend a supported pending algo order idempotently.", z.strictObject({ account: Account, executionKey: ExecutionKey, instId: InstId, algoId: z.string().optional(), algoClOrdId: z.string().optional(), newSize: z.string().optional(), newTriggerPrice: z.string().optional(), newOrderPrice: z.string().optional() }), (c, a) => c.trade.amendAlgoOrder(a as never)),
-  tool("trade_cancel_algo_order", "Cancel a pending algo order idempotently.", z.strictObject({ account: Account, executionKey: ExecutionKey, instId: InstId, algoId: z.string().min(1) }), (c, a) => c.trade.cancelAlgoOrder(a as never)),
-  tool("trade_close_position", "Close an OKX position with a market order idempotently.", z.strictObject({ account: Account, executionKey: ExecutionKey, instId: InstId, mgnMode: z.enum(["cross", "isolated"]), posSide: z.string().optional(), ccy: z.string().optional(), autoCancel: z.boolean().optional() }), (c, a) => c.trade.closePosition(a as never)),
-  tool("trade_cancel_instrument_orders", "Cancel every pending ordinary and algo order for one instrument.", z.strictObject({ account: Account, executionKey: ExecutionKey, instId: InstId }), (c, a) => c.trade.cancelInstrumentOrders(a as never)),
-  tool("trade_close_instrument_positions", "Close every open position side for one instrument.", z.strictObject({ account: Account, executionKey: ExecutionKey, instId: InstId }), (c, a) => c.trade.closeInstrumentPositions(a as never))
+  tradeTool("trade_evaluate_plan", "Calculate contract quantity, notional, margin, and stop risk without writing.", EvaluateSchema, (c, a) => c.trade.evaluatePlan(a as never)),
+  tradeTool("trade_precheck_order", "Validate an ordinary order against instrument, account, and market facts.", PlaceOrderSchema, (c, a) => c.trade.precheck(a as unknown as PlaceOrderInput)),
+  tradeTool("trade_set_leverage", "Set leverage for an instrument and margin mode.", z.strictObject({ account: Account, executionKey: ExecutionKey, instId: SwapInstId, lever: z.string().min(1), mgnMode: z.enum(["cross", "isolated"]), posSide: z.string().optional() }), (c, a) => c.trade.setLeverage(a as never)),
+  tradeTool("trade_place_order", "Submit an idempotent ordinary order after precheck.", PlaceOrderSchema, (c, a) => c.trade.placeOrder(a as unknown as PlaceOrderInput)),
+  tradeTool("trade_place_batch_orders", "Submit up to twenty prechecked ordinary orders idempotently.", z.strictObject({ account: Account, executionKey: ExecutionKey, orders: z.array(BatchOrderItemSchema).min(1).max(20) }), (c, a) => c.trade.placeBatchOrders(a as never)),
+  tradeTool("trade_amend_order", "Amend an existing ordinary order idempotently.", z.strictObject({ account: Account, executionKey: ExecutionKey, instId: SwapInstId, ordId: z.string().optional(), clOrdId: z.string().optional(), newSize: z.string().optional(), newPrice: z.string().optional() }), (c, a) => c.trade.amendOrder(a as never)),
+  tradeTool("trade_cancel_order", "Cancel an existing ordinary order idempotently.", z.strictObject({ account: Account, executionKey: ExecutionKey, instId: SwapInstId, ordId: z.string().optional(), clOrdId: z.string().optional() }), (c, a) => c.trade.cancelOrder(a as never)),
+  tradeTool("trade_precheck_algo_order", "Validate an algo order against instrument, account, and market facts.", PlaceAlgoSchema, (c, a) => c.trade.precheckAlgo(a as unknown as PlaceAlgoOrderInput)),
+  tradeTool("trade_place_algo_order", "Submit an idempotent prechecked trigger, conditional, or trailing order.", PlaceAlgoSchema, (c, a) => c.trade.placeAlgoOrder(a as unknown as PlaceAlgoOrderInput)),
+  tradeTool("trade_amend_algo_order", "Amend a supported pending algo order idempotently.", z.strictObject({ account: Account, executionKey: ExecutionKey, instId: SwapInstId, algoId: z.string().optional(), algoClOrdId: z.string().optional(), newSize: z.string().optional(), newTriggerPrice: z.string().optional(), newOrderPrice: z.string().optional() }), (c, a) => c.trade.amendAlgoOrder(a as never)),
+  tradeTool("trade_cancel_algo_order", "Cancel a pending algo order idempotently.", z.strictObject({ account: Account, executionKey: ExecutionKey, instId: SwapInstId, algoId: z.string().min(1) }), (c, a) => c.trade.cancelAlgoOrder(a as never)),
+  tradeTool("trade_close_position", "Close a position with a market order idempotently.", z.strictObject({ account: Account, executionKey: ExecutionKey, instId: SwapInstId, mgnMode: z.enum(["cross", "isolated"]), posSide: z.string().optional(), ccy: z.string().optional(), autoCancel: z.boolean().optional() }), (c, a) => c.trade.closePosition(a as never)),
+  tradeTool("trade_cancel_instrument_orders", "Cancel every pending ordinary and algo order for one instrument.", z.strictObject({ account: Account, executionKey: ExecutionKey, instId: SwapInstId }), (c, a) => c.trade.cancelInstrumentOrders(a as never)),
+  tradeTool("trade_close_instrument_positions", "Close every open position side for one instrument.", z.strictObject({ account: Account, executionKey: ExecutionKey, instId: SwapInstId }), (c, a) => c.trade.closeInstrumentPositions(a as never))
 ];
 
 export function toolByName(name: string): ToolDefinition | undefined {
@@ -250,6 +254,10 @@ function smartTools(): ToolDefinition[] {
 
 function tool(name: string, description: string, schema: z.ZodObject, execute: ToolDefinition["execute"]): ToolDefinition {
   return { name, description, schema, execute };
+}
+
+function tradeTool(name: string, description: string, schema: z.ZodObject, execute: ToolDefinition["execute"]): ToolDefinition {
+  return tool(name, `${description} Supports OKX perpetual swap instruments ending in -SWAP only.`, schema, execute);
 }
 
 function experimentalTool(name: string, description: string, schema: z.ZodObject, execute: ToolDefinition["execute"]): ToolDefinition {

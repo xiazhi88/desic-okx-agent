@@ -61,13 +61,14 @@ export class TradeService {
   ) {}
 
   async evaluatePlan(input: EvaluatePlanInput): Promise<ToolResult<Record<string, unknown>>> {
+    assertPerpetualSwap(input.instId);
     const [instrumentResult, tickerResult] = await Promise.all([
       this.market.getInstrument(input.instId),
       this.market.getTicker(input.instId)
     ]);
     const instrument = instrumentResult.data;
     const contracts = number(input.size, "size");
-    const referencePrice = input.price ? number(input.price, "price") : number(instrumentType(input.instId) === "SPOT" ? tickerResult.data.last : tickerResult.data.last, "ticker.last");
+    const referencePrice = input.price ? number(input.price, "price") : number(tickerResult.data.last, "ticker.last");
     const ctVal = optionalNumber(instrument.ctVal) ?? 1;
     const ctMult = optionalNumber(instrument.ctMult) ?? 1;
     const baseQuantity = contracts * ctVal * ctMult;
@@ -101,6 +102,7 @@ export class TradeService {
   }
 
   async precheck(input: PlaceOrderInput): Promise<ToolResult<Record<string, unknown>>> {
+    assertPerpetualSwap(input.instId);
     const account = this.accounts.account(input.account);
     const [instrument, accountConfig, balances, positions, snapshot, plan] = await Promise.all([
       this.market.getInstrument(input.instId),
@@ -141,6 +143,7 @@ export class TradeService {
   }
 
   async precheckAlgo(input: PlaceAlgoOrderInput): Promise<ToolResult<Record<string, unknown>>> {
+    assertPerpetualSwap(input.instId);
     const account = this.accounts.account(input.account);
     const [instrument, accountConfig, snapshot] = await Promise.all([
       this.market.getInstrument(input.instId),
@@ -191,6 +194,7 @@ export class TradeService {
   }
 
   async setLeverage(input: { account?: string; executionKey: string; instId: string; lever: string; mgnMode: "cross" | "isolated"; posSide?: string }): Promise<ToolResult<Record<string, unknown>>> {
+    assertPerpetualSwap(input.instId);
     const account = this.accounts.account(input.account);
     const body = { instId: input.instId, lever: input.lever, mgnMode: input.mgnMode, ...(input.posSide ? { posSide: input.posSide } : {}) };
     return this.execute(account, input.executionKey, "set_leverage", body, async () => ({
@@ -263,6 +267,7 @@ export class TradeService {
   }
 
   async amendOrder(input: { account?: string; executionKey: string; instId: string; ordId?: string; clOrdId?: string; newSize?: string; newPrice?: string }): Promise<ToolResult<Record<string, unknown>>> {
+    assertPerpetualSwap(input.instId);
     const account = this.accounts.account(input.account);
     const body = {
       instId: input.instId,
@@ -283,6 +288,7 @@ export class TradeService {
   }
 
   async cancelOrder(input: { account?: string; executionKey: string; instId: string; ordId?: string; clOrdId?: string }): Promise<ToolResult<Record<string, unknown>>> {
+    assertPerpetualSwap(input.instId);
     const account = this.accounts.account(input.account);
     const body = { instId: input.instId, ...(input.ordId ? { ordId: input.ordId } : {}), ...(input.clOrdId ? { clOrdId: input.clOrdId } : {}) };
     return this.execute(account, input.executionKey, "cancel_order", body, async () => ({ orders: await this.client.privatePost("/api/v5/trade/cancel-order", account, body) }), async () => {
@@ -325,6 +331,7 @@ export class TradeService {
   }
 
   async amendAlgoOrder(input: { account?: string; executionKey: string; instId: string; algoId?: string; algoClOrdId?: string; newSize?: string; newTriggerPrice?: string; newOrderPrice?: string }): Promise<ToolResult<Record<string, unknown>>> {
+    assertPerpetualSwap(input.instId);
     const account = this.accounts.account(input.account);
     const body = {
       instId: input.instId,
@@ -339,6 +346,7 @@ export class TradeService {
   }
 
   async cancelAlgoOrder(input: { account?: string; executionKey: string; instId: string; algoId: string }): Promise<ToolResult<Record<string, unknown>>> {
+    assertPerpetualSwap(input.instId);
     const account = this.accounts.account(input.account);
     const body = [{ instId: input.instId, algoId: input.algoId }];
     return this.execute(account, input.executionKey, "cancel_algo_order", body, async () => ({ orders: await this.client.privatePost("/api/v5/trade/cancel-algos", account, body) }), async () => {
@@ -349,6 +357,7 @@ export class TradeService {
   }
 
   async closePosition(input: { account?: string; executionKey: string; instId: string; mgnMode: "cross" | "isolated"; posSide?: string; ccy?: string; autoCancel?: boolean }): Promise<ToolResult<Record<string, unknown>>> {
+    assertPerpetualSwap(input.instId);
     const account = this.accounts.account(input.account);
     const clOrdId = clientId(input.executionKey, "c");
     const body = {
@@ -370,6 +379,7 @@ export class TradeService {
   }
 
   async cancelInstrumentOrders(input: { account?: string; executionKey: string; instId: string }): Promise<ToolResult<Record<string, unknown>>> {
+    assertPerpetualSwap(input.instId);
     const open = await this.accounts.getOpenOrders(input.account, input.instId);
     const data = open.data as { orders: Array<Record<string, unknown>>; algoOrders: Array<Record<string, unknown>> };
     const ordinary = await Promise.all(data.orders.map((order, index) => this.cancelOrder({
@@ -388,6 +398,7 @@ export class TradeService {
   }
 
   async closeInstrumentPositions(input: { account?: string; executionKey: string; instId: string }): Promise<ToolResult<Record<string, unknown>>> {
+    assertPerpetualSwap(input.instId);
     const positions = await this.accounts.getPositions(input.account, input.instId);
     const open = (positions.data as Array<Record<string, unknown>>).filter((position) => Number(position.pos ?? 0) !== 0);
     const results = await Promise.all(open.map((position, index) => this.closePosition({
@@ -511,7 +522,8 @@ function sameNumber(left: string, right: string): boolean {
   return Math.abs(Number(left) - Number(right)) <= Number.EPSILON * Math.max(1, Math.abs(Number(left)), Math.abs(Number(right)));
 }
 
-function instrumentType(instId: string): "SPOT" | "SWAP" | "FUTURES" {
-  if (instId.endsWith("-SWAP")) return "SWAP";
-  return instId.split("-").length >= 3 ? "FUTURES" : "SPOT";
+function assertPerpetualSwap(instId: string): void {
+  if (!instId.endsWith("-SWAP")) {
+    throw new RuntimeError("VALIDATION", "Trading tools support only OKX perpetual swap instruments ending in -SWAP");
+  }
 }

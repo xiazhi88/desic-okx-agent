@@ -24,4 +24,26 @@ describe("tool catalog", () => {
       expect(tool.name.toLowerCase()).not.toContain("tag");
     }
   });
+
+  it("limits every trading tool to perpetual swaps", () => {
+    const trading = TOOL_CATALOG.filter((tool) => tool.name.startsWith("trade_"));
+    expect(trading.length).toBeGreaterThan(0);
+    for (const tool of trading) expect(tool.description).toContain("perpetual swap");
+
+    const ordinary = TOOL_CATALOG.find((tool) => tool.name === "trade_place_order")!;
+    expect(ordinary.schema.safeParse({
+      executionKey: "spot-order",
+      instId: "BTC-USDT",
+      tdMode: "cash",
+      side: "buy",
+      ordType: "market",
+      size: "1"
+    }).success).toBe(false);
+
+    const batch = TOOL_CATALOG.find((tool) => tool.name === "trade_place_batch_orders")!;
+    expect(batch.schema.safeParse({
+      executionKey: "dated-future-order",
+      orders: [{ instId: "BTC-USDT-260925", tdMode: "cross", side: "buy", ordType: "market", size: "1" }]
+    }).success).toBe(false);
+  });
 });
