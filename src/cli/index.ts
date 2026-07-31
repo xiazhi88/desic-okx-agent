@@ -80,7 +80,7 @@ program.command("setup")
     const interactive = !options.all && !options.targets && !options.yes;
     if (interactive) {
       const outcome = await runSetupWizard({ skipNetworkCheck: options.skipNetworkCheck });
-      if (outcome.proxyChanged) await stopForReload();
+      if (outcome.proxyChanged || outcome.accountChanged) await stopForReload();
       if (!setupSucceeded(outcome.results) || (outcome.network && !outcome.network.ok && !outcome.networkSkipped)) process.exitCode = 1;
       return;
     }

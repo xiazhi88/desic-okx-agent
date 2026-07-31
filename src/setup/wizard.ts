@@ -1,7 +1,10 @@
 import * as prompts from "@clack/prompts";
+import { AccountService } from "../account/service.js";
 import { loadStoredConfig, saveConfig } from "../config/loader.js";
 import { CONFIG_PATH } from "../config/paths.js";
-import { checkOkxConnectivity, type ConnectivityResult } from "../network/connectivity.js";
+import { publicError } from "../core/errors.js";
+import { OkxClient } from "../core/okx-client.js";
+import { checkOkxConnectivity, OKX_REST_BASE_URL, type ConnectivityResult } from "../network/connectivity.js";
 import { displayProxy, normalizeProxyUrl, resolveProxy, type ResolvedProxy } from "../network/proxy.js";
 import {
   SETUP_TARGETS,
@@ -19,6 +22,9 @@ export interface SetupWizardResult {
   proxy: ResolvedProxy;
   proxyChanged: boolean;
   networkSkipped: boolean;
+  accountChanged: boolean;
+  accountSkipped: boolean;
+  accountName?: string;
 }
 
 const TARGET_LABELS: Record<SetupTarget, string> = {
@@ -115,11 +121,148 @@ export async function runSetupWizard(options: { skipNetworkCheck?: boolean } = {
 
   if (network?.ok) prompts.log.success(formatNetworkSuccess(network, proxy));
   if (networkSkipped) prompts.log.warn("Network check skipped. Public and trading tools may be unavailable.");
+  const account = await configureAccount(network?.ok === true, proxy);
   const succeeded = setupSucceeded(results) && (network?.ok || networkSkipped);
   prompts.outro(succeeded
-    ? "Setup complete. Restart the selected AI clients."
+    ? formatSetupComplete(account)
     : "Setup finished with errors. Review the failed clients above.");
-  return { targets, results, network, proxy, proxyChanged, networkSkipped };
+  return {
+    targets,
+    results,
+    network,
+    proxy,
+    proxyChanged,
+    networkSkipped,
+    accountChanged: account.changed,
+    accountSkipped: account.skipped,
+    accountName: account.name
+  };
+}
+
+interface AccountSetupResult {
+  changed: boolean;
+  skipped: boolean;
+  name?: string;
+}
+
+async function configureAccount(networkAvailable: boolean, proxy: ResolvedProxy): Promise<AccountSetupResult> {
+  const stored = loadStoredConfig();
+  const existingNames = Object.keys(stored.accounts);
+  prompts.note([
+    "Public market and derivatives tools work without an API key.",
+    "An API key is required for account and trading tools.",
+    "Remote News and Smart Money also require a live-account API key; read-only permission is sufficient.",
+    "Create the key in the official OKX website or app. You can skip this step and run `desic-okx account add` later."
+  ].join("\n"), "OKX API account (optional)");
+
+  if (!networkAvailable) {
+    prompts.log.info("Account setup skipped because OKX connectivity was not verified. Configure it later with `desic-okx account add`.");
+    return { changed: false, skipped: true };
+  }
+
+  const action = await prompts.select({
+    message: existingNames.length
+      ? `${existingNames.length} OKX account(s) already configured. What would you like to do?`
+      : "Would you like to configure an OKX API account now?",
+    options: existingNames.length
+      ? [
+          { value: "keep", label: "Keep existing accounts", hint: "You can add or edit accounts later" },
+          { value: "add", label: "Add another account", hint: "Verify before saving" }
+        ]
+      : [
+          { value: "add", label: "Configure an account now", hint: "Verify before saving" },
+          { value: "keep", label: "Skip for now", hint: "Public tools remain available" }
+        ]
+  });
+  cancelIfNeeded(action);
+  if (action === "keep") {
+    prompts.log.info(existingNames.length
+      ? "Existing account configuration kept."
+      : "API account setup skipped. Run `desic-okx account add` whenever you need private tools.");
+    return { changed: false, skipped: true };
+  }
+
+  while (true) {
+    const nameValue = await prompts.text({
+      message: "Account alias",
+      placeholder: "default",
+      defaultValue: "default",
+      validate: (value) => {
+        const normalized = value?.trim() ?? "";
+        if (!normalized) return "Account alias is required";
+        if (normalized.length > 64) return "Account alias must be 64 characters or fewer";
+        if (existingNames.includes(normalized)) return `Account '${normalized}' already exists; use a different alias or run desic-okx account edit`;
+        return undefined;
+      }
+    });
+    cancelIfNeeded(nameValue);
+    const name = (nameValue as string).trim();
+
+    const environmentValue = await prompts.select({
+      message: "OKX environment",
+      options: [
+        { value: "live", label: "Live", hint: "Required for remote News and Smart Money" },
+        { value: "demo", label: "Demo", hint: "Recommended for testing trading operations" }
+      ]
+    });
+    cancelIfNeeded(environmentValue);
+    const environment = environmentValue as "demo" | "live";
+
+    const apiKey = await requiredPassword("API Key");
+    const secretKey = await requiredPassword("Secret Key");
+    const passphrase = await requiredPassword("Passphrase");
+    const candidate = loadStoredConfig();
+    candidate.accounts[name] = { environment, apiKey, secretKey, passphrase };
+    candidate.defaultAccount ??= name;
+
+    const spinner = prompts.spinner();
+    spinner.start(`Verifying '${name}' with OKX`);
+    try {
+      const client = new OkxClient(OKX_REST_BASE_URL, proxy.url);
+      const verified = await new AccountService(candidate, client).verify(name);
+      saveConfig(candidate);
+      spinner.stop(`Account '${name}' verified and saved`);
+      prompts.note(formatAccountPermissions(verified.data), "OKX account");
+      return { changed: true, skipped: false, name };
+    } catch (error) {
+      spinner.stop(`Could not verify account '${name}'`);
+      prompts.log.warn(String(publicError(error).message));
+      const next = await prompts.select({
+        message: "How should account setup continue?",
+        options: [
+          { value: "retry", label: "Try again", hint: "Re-enter the account and credentials" },
+          { value: "skip", label: "Skip for now", hint: "No credentials will be saved" }
+        ]
+      });
+      cancelIfNeeded(next);
+      if (next === "skip") {
+        prompts.log.info("No API credentials were saved. Run `desic-okx account add` later.");
+        return { changed: false, skipped: true };
+      }
+    }
+  }
+}
+
+async function requiredPassword(message: string): Promise<string> {
+  const value = await prompts.password({
+    message,
+    mask: "*",
+    validate: (input) => input?.trim() ? undefined : `${message} is required`
+  });
+  cancelIfNeeded(value);
+  return (value as string).trim();
+}
+
+function formatAccountPermissions(data: Record<string, unknown>): string {
+  const permission = String(data.perm ?? data.permissions ?? "reported by OKX");
+  return `Saved to ${CONFIG_PATH}\nEnvironment and API permissions: ${permission}`;
+}
+
+function formatSetupComplete(account: AccountSetupResult): string {
+  const accountMessage = account.changed
+    ? `OKX account '${account.name}' is ready.`
+    : "Public tools are ready. Configure an API account later when private tools are needed.";
+  return `Setup complete. ${accountMessage} Restart the selected AI clients, then run \`desic-okx doctor\`.`;
 }
 
 async function checkWithSpinner(proxy: ResolvedProxy): Promise<ConnectivityResult> {
