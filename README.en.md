@@ -268,6 +268,6 @@ Trading software can cause financial loss. This project provides no investment a
 
 ## Status and license
 
-This is pre-release software at version `0.2.0`. OKX Demo trading should be validated in the target network environment before a `1.0.0` release.
+This is pre-release software at version `0.2.1`. OKX Demo trading should be validated in the target network environment before a `1.0.0` release.
 
 MIT License. See `LICENSE`. OKX and related marks belong to their respective owners.
