@@ -40,7 +40,7 @@ The interactive guide:
 3. Installs all seven bundled Skills for Codex and Claude Code.
 4. Checks OKX REST and WebSocket connectivity and guides you through testing and saving an HTTP proxy when needed.
 5. Explains which features require an API key and lets you configure one now or skip it.
-6. Masks credential input, verifies the account with OKX, and saves it only after successful verification.
+6. Masks credential input, automatically detects Live or Demo Trading, and saves the account only after successful verification.
 
 An API account is optional. Public market and derivatives tools remain available when you skip this step. Configure an account later with:
 
@@ -59,7 +59,7 @@ desic-okx setup --targets codex --yes --skip-network-check
 
 ## Configure an OKX API account
 
-Create an API key in the official OKX website or app. Live and Demo Trading accounts use keys for their respective environments, so select the matching `live` or `demo` environment in the guide.
+Create an API key in the official OKX website or app. Live and Demo Trading accounts use keys for their respective environments. Desic OKX Agent detects the environment through read-only verification, so the user does not select it.
 
 Grant only the permissions needed for your use case:
 
@@ -75,8 +75,8 @@ This project has no withdrawal, deposit, transfer, asset-movement, or API-key-ma
 Add an account interactively:
 
 ```bash
-desic-okx account add --name demo --environment demo
-desic-okx account add --name main --environment live
+desic-okx account add --name demo
+desic-okx account add --name main
 ```
 
 API Key, Secret Key, and Passphrase input is hidden. `account add` verifies the credentials with OKX before writing them; failed verification saves nothing. Credentials are stored in `config.json` under the system configuration directory, with Unix permissions set to `0600`:
@@ -92,10 +92,9 @@ OKX_ACCOUNT
 OKX_API_KEY
 OKX_API_SECRET
 OKX_API_PASSPHRASE
-OKX_ENVIRONMENT=demo|live
 ```
 
-All three credential variables must be provided together. Trading availability is determined entirely by the permissions assigned to the API key in OKX.
+All three credential variables must be provided together. The Runtime detects the account environment automatically. Trading availability is determined entirely by the permissions assigned to the API key in OKX.
 
 ## Ask an AI to install it
 

@@ -1,7 +1,8 @@
 import type { RuntimeConfig } from "../config/schema.js";
 import { resolveAccount } from "../config/loader.js";
+import { RuntimeError } from "../core/errors.js";
 import { OkxClient } from "../core/okx-client.js";
-import { resultMeta, type AccountCredentials, type ToolResult } from "../core/types.js";
+import { resultMeta, type AccountCredentials, type OkxEnvironment, type ToolResult } from "../core/types.js";
 import type { AccountStore } from "./store.js";
 
 export class AccountService {
@@ -119,6 +120,38 @@ export class AccountService {
       meta: resultMeta({ source, environment: account.environment, account: account.name })
     };
   }
+}
+
+export interface UnclassifiedAccountCredentials {
+  name: string;
+  apiKey: string;
+  secretKey: string;
+  passphrase: string;
+}
+
+export interface DetectedAccount {
+  account: AccountCredentials;
+  config: Record<string, unknown>;
+}
+
+export async function detectAccountEnvironment(
+  client: Pick<OkxClient, "privateGet">,
+  credentials: UnclassifiedAccountCredentials,
+  preferred?: OkxEnvironment
+): Promise<DetectedAccount> {
+  const environments: OkxEnvironment[] = preferred === "demo" ? ["demo", "live"] : ["live", "demo"];
+  let lastError: unknown;
+  for (const environment of environments) {
+    const account: AccountCredentials = { ...credentials, environment };
+    try {
+      const [config] = await client.privateGet<Record<string, unknown>>("/api/v5/account/config", account);
+      return { account, config: config ?? {} };
+    } catch (error) {
+      lastError = error;
+      if (error instanceof RuntimeError && !["AUTH", "PERMISSION", "OKX_REJECTED"].includes(error.code)) throw error;
+    }
+  }
+  throw lastError ?? new RuntimeError("AUTH", "OKX account environment could not be detected");
 }
 
 function recent<T>(value: import("../core/types.js").TimedValue<T> | undefined): import("../core/types.js").TimedValue<T> | undefined {

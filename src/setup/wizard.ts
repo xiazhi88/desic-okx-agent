@@ -1,5 +1,5 @@
 import * as prompts from "@clack/prompts";
-import { AccountService } from "../account/service.js";
+import { detectAccountEnvironment } from "../account/service.js";
 import { loadStoredConfig, saveConfig } from "../config/loader.js";
 import { CONFIG_PATH } from "../config/paths.js";
 import { publicError } from "../core/errors.js";
@@ -198,31 +198,25 @@ async function configureAccount(networkAvailable: boolean, proxy: ResolvedProxy)
     cancelIfNeeded(nameValue);
     const name = (nameValue as string).trim();
 
-    const environmentValue = await prompts.select({
-      message: "OKX environment",
-      options: [
-        { value: "live", label: "Live", hint: "Required for remote News and Smart Money" },
-        { value: "demo", label: "Demo", hint: "Recommended for testing trading operations" }
-      ]
-    });
-    cancelIfNeeded(environmentValue);
-    const environment = environmentValue as "demo" | "live";
-
     const apiKey = await requiredPassword("API Key");
     const secretKey = await requiredPassword("Secret Key");
     const passphrase = await requiredPassword("Passphrase");
-    const candidate = loadStoredConfig();
-    candidate.accounts[name] = { environment, apiKey, secretKey, passphrase };
-    candidate.defaultAccount ??= name;
-
     const spinner = prompts.spinner();
-    spinner.start(`Verifying '${name}' with OKX`);
+    spinner.start(`Verifying '${name}' and detecting its OKX environment`);
     try {
       const client = new OkxClient(OKX_REST_BASE_URL, proxy.url);
-      const verified = await new AccountService(candidate, client).verify(name);
+      const detected = await detectAccountEnvironment(client, { name, apiKey, secretKey, passphrase });
+      const candidate = loadStoredConfig();
+      candidate.accounts[name] = {
+        environment: detected.account.environment,
+        apiKey,
+        secretKey,
+        passphrase
+      };
+      candidate.defaultAccount ??= name;
       saveConfig(candidate);
-      spinner.stop(`Account '${name}' verified and saved`);
-      prompts.note(formatAccountPermissions(verified.data), "OKX account");
+      spinner.stop(`Account '${name}' verified as ${detected.account.environment} and saved`);
+      prompts.note(formatAccountPermissions(detected.account.environment, detected.config), "OKX account");
       return { changed: true, skipped: false, name };
     } catch (error) {
       spinner.stop(`Could not verify account '${name}'`);
@@ -253,9 +247,9 @@ async function requiredPassword(message: string): Promise<string> {
   return (value as string).trim();
 }
 
-function formatAccountPermissions(data: Record<string, unknown>): string {
+function formatAccountPermissions(environment: "demo" | "live", data: Record<string, unknown>): string {
   const permission = String(data.perm ?? data.permissions ?? "reported by OKX");
-  return `Saved to ${CONFIG_PATH}\nEnvironment and API permissions: ${permission}`;
+  return `Saved to ${CONFIG_PATH}\nDetected environment: ${environment}\nAPI permissions: ${permission}`;
 }
 
 function formatSetupComplete(account: AccountSetupResult): string {

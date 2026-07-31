@@ -40,7 +40,7 @@ desic-okx doctor
 3. 为 Codex 和 Claude Code 自动安装全部 7 个 Skills。
 4. 检查 OKX REST 与 WebSocket；连接失败时引导测试并保存 HTTP 代理。
 5. 解释不同功能的 API Key 要求，并让用户选择“现在配置”或“以后配置”。
-6. 如果现在配置，隐藏凭证输入，先向 OKX 验证，成功后才写入本地配置。
+6. 如果现在配置，隐藏凭证输入，自动识别实盘或模拟盘，验证成功后才写入本地配置。
 
 API 账户是可选的。跳过后公共行情和公共衍生品仍可使用，以后运行下面的命令即可配置：
 
@@ -59,7 +59,7 @@ desic-okx setup --targets codex --yes --skip-network-check
 
 ## 配置 OKX API
 
-在 OKX 官方网站或 App 中创建 API Key。实盘账户与模拟交易账户使用各自环境的 API Key；在向导中必须选择对应的 `live` 或 `demo` 环境。
+在 OKX 官方网站或 App 中创建 API Key。实盘账户与模拟交易账户使用各自环境的 API Key，Desic OKX Agent 会通过只读验证自动识别，不需要用户选择实盘或模拟盘。
 
 按实际用途授予权限：
 
@@ -75,8 +75,8 @@ desic-okx setup --targets codex --yes --skip-network-check
 交互式添加账户：
 
 ```bash
-desic-okx account add --name demo --environment demo
-desic-okx account add --name main --environment live
+desic-okx account add --name demo
+desic-okx account add --name main
 ```
 
 输入 API Key、Secret Key 和 Passphrase 时终端会隐藏文本。`account add` 会先连接 OKX 验证，验证失败不会保存凭证。凭证保存在系统配置目录的 `config.json` 中；Unix 权限为 `0600`：
@@ -92,10 +92,9 @@ OKX_ACCOUNT
 OKX_API_KEY
 OKX_API_SECRET
 OKX_API_PASSPHRASE
-OKX_ENVIRONMENT=demo|live
 ```
 
-三个凭证变量必须同时提供。能否交易完全取决于 OKX 为该 API Key 配置的官方权限。
+三个凭证变量必须同时提供。Runtime 会自动探测账户环境；能否交易完全取决于 OKX 为该 API Key 配置的官方权限。
 
 ## 让 AI 自动安装
 

@@ -8,7 +8,7 @@ import { publicError } from "../core/errors.js";
 import { PACKAGE_VERSION } from "../core/version.js";
 import { checkOkxConnectivity, OKX_REST_BASE_URL } from "../network/connectivity.js";
 import { displayProxy, resolveProxy } from "../network/proxy.js";
-import { AccountService } from "../account/service.js";
+import { AccountService, detectAccountEnvironment } from "../account/service.js";
 import { runMcpServer } from "../mcp/server.js";
 import { RuntimeClient } from "../runtime/client.js";
 import { ask, askConfirm, askSecret } from "./prompts.js";
@@ -179,23 +179,24 @@ const account = program.command("account").description("Manage named OKX account
 account.command("add")
   .description("Add or replace a named account")
   .option("--name <name>", "account alias")
-  .option("--environment <environment>", "demo or live")
-  .action(async (options: { name?: string; environment?: string }) => {
+  .action(async (options: { name?: string }) => {
     const name = options.name?.trim() || await ask("Account name", "default");
-    const environmentValue = options.environment?.trim() || await ask("Environment (demo/live)", "demo");
-    if (environmentValue !== "demo" && environmentValue !== "live") throw new Error("Environment must be demo or live");
     const apiKey = await askSecret("API Key");
     const secretKey = await askSecret("Secret Key");
     const passphrase = await askSecret("Passphrase");
     if (!apiKey || !secretKey || !passphrase) throw new Error("All three credential fields are required");
-    const config = loadStoredConfig();
-    const candidate = structuredClone(config);
-    candidate.accounts[name] = { environment: environmentValue, apiKey, secretKey, passphrase };
+    const detected = await detectCredentials({ name, apiKey, secretKey, passphrase });
+    const candidate = loadStoredConfig();
+    candidate.accounts[name] = {
+      environment: detected.account.environment,
+      apiKey,
+      secretKey,
+      passphrase
+    };
     candidate.defaultAccount ??= name;
-    const verified = await verifyAccount(candidate, name);
     saveConfig(candidate);
     await stopForReload();
-    print({ saved: true, name, environment: environmentValue, permissions: verified.data, configPath: CONFIG_PATH });
+    print({ saved: true, name, environment: detected.account.environment, permissions: detected.config, configPath: CONFIG_PATH });
   });
 
 account.command("list")
@@ -251,31 +252,32 @@ account.command("rename")
   });
 
 account.command("edit")
-  .description("Edit an account environment or replace its credentials")
+  .description("Verify an account or replace its credentials")
   .argument("<name>", "account alias")
-  .option("--environment <environment>", "demo or live")
   .option("--replace-credentials", "Prompt for replacement credentials")
-  .action(async (name: string, options: { environment?: string; replaceCredentials?: boolean }) => {
+  .action(async (name: string, options: { replaceCredentials?: boolean }) => {
     const config = loadStoredConfig();
     const current = config.accounts[name];
     if (!current) throw new Error(`Account '${name}' was not found`);
-    const environment = options.environment?.trim() || await ask("Environment (demo/live)", current.environment);
-    if (environment !== "demo" && environment !== "live") throw new Error("Environment must be demo or live");
-    const normalizedEnvironment: "demo" | "live" = environment;
     const replace = options.replaceCredentials ?? await askConfirm("Replace API credentials", false);
-    const updated = { ...current, environment: normalizedEnvironment };
+    const credentials = { name, apiKey: current.apiKey, secretKey: current.secretKey, passphrase: current.passphrase };
     if (replace) {
-      updated.apiKey = await askSecret("API Key");
-      updated.secretKey = await askSecret("Secret Key");
-      updated.passphrase = await askSecret("Passphrase");
-      if (!updated.apiKey || !updated.secretKey || !updated.passphrase) throw new Error("All three credential fields are required");
+      credentials.apiKey = await askSecret("API Key");
+      credentials.secretKey = await askSecret("Secret Key");
+      credentials.passphrase = await askSecret("Passphrase");
+      if (!credentials.apiKey || !credentials.secretKey || !credentials.passphrase) throw new Error("All three credential fields are required");
     }
+    const detected = await detectCredentials(credentials, current.environment);
     const candidate = structuredClone(config);
-    candidate.accounts[name] = updated;
-    const verified = await verifyAccount(candidate, name);
+    candidate.accounts[name] = {
+      environment: detected.account.environment,
+      apiKey: credentials.apiKey,
+      secretKey: credentials.secretKey,
+      passphrase: credentials.passphrase
+    };
     saveConfig(candidate);
     await stopForReload();
-    print({ saved: true, name, environment, permissions: verified.data });
+    print({ saved: true, name, environment: detected.account.environment, permissions: detected.config });
   });
 
 account.command("remove")
@@ -307,9 +309,13 @@ async function stopForReload(): Promise<void> {
   } catch {}
 }
 
-async function verifyAccount(config: ReturnType<typeof loadStoredConfig>, name: string): Promise<Awaited<ReturnType<AccountService["verify"]>>> {
+async function detectCredentials(
+  credentials: { name: string; apiKey: string; secretKey: string; passphrase: string },
+  preferred?: "demo" | "live"
+): ReturnType<typeof detectAccountEnvironment> {
+  const config = loadStoredConfig();
   const client = new OkxClient(OKX_REST_BASE_URL, resolveProxy(config.proxy.url).url);
-  return new AccountService(config, client).verify(name);
+  return detectAccountEnvironment(client, credentials, preferred);
 }
 
 function parseSkillTargets(value: string): Array<"codex" | "claude-code"> {

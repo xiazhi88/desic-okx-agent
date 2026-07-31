@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import http from "node:http";
 import { loadConfig } from "../config/loader.js";
-import { AccountService } from "../account/service.js";
+import { AccountService, detectAccountEnvironment } from "../account/service.js";
 import { AccountStore } from "../account/store.js";
 import { PrivateAccountWebSockets } from "../account/private-websocket.js";
 import { OkxClient } from "../core/okx-client.js";
@@ -29,7 +29,7 @@ export class RuntimeServer {
   private readonly market = new MarketService(this.config, this.store, this.client, this.database);
   private readonly websocket = new MarketWebSocket(this.config, this.store, this.database);
   private readonly accountStore = new AccountStore();
-  private readonly privateWebSockets = new PrivateAccountWebSockets(this.config, this.accountStore);
+  private privateWebSockets?: PrivateAccountWebSockets;
   private readonly account = new AccountService(this.config, this.client, this.accountStore);
   private readonly derivatives = new DerivativesService(this.client, this.database);
   private readonly intelligence = new IntelligenceService(this.config, this.client, this.account, this.database, this.market, this.derivatives);
@@ -48,7 +48,6 @@ export class RuntimeServer {
     this.market.attachWebSocket(this.websocket);
     this.market.restorePersisted();
     this.websocket.start();
-    this.privateWebSockets.start();
     this.intelligence.start();
     this.server = http.createServer((request, response) => void this.route(request, response));
     await new Promise<void>((resolve, reject) => {
@@ -66,6 +65,7 @@ export class RuntimeServer {
       version: PACKAGE_VERSION
     };
     writeRuntimeState(this.state);
+    void this.startPrivateAccounts();
     return this.state;
   }
 
@@ -74,7 +74,7 @@ export class RuntimeServer {
     this.closing = true;
     appendRuntimeLifecycle("server-stopping", { instanceId: this.instanceId, reason });
     this.websocket.stop();
-    this.privateWebSockets.stop();
+    this.privateWebSockets?.stop();
     this.intelligence.stop();
     await new Promise<void>((resolve) => this.server?.close(() => resolve()) ?? resolve());
     this.database.close();
@@ -97,7 +97,7 @@ export class RuntimeServer {
           uptimeMs: Math.max(0, Date.now() - startedAt),
           proxy: displayProxy(this.proxy),
           websocket: this.websocket.status(),
-          privateWebsocket: this.privateWebSockets.status(),
+          privateWebsocket: this.privateWebSockets?.status() ?? [],
           subscriptions: this.store.status(),
           accounts: Object.entries(this.config.accounts).map(([name, account]) => ({
             name, environment: account.environment, default: this.config.defaultAccount === name
@@ -134,6 +134,23 @@ export class RuntimeServer {
 
   private authorized(request: http.IncomingMessage): boolean {
     return request.headers.authorization === `Bearer ${this.token}`;
+  }
+
+  private async startPrivateAccounts(): Promise<void> {
+    await Promise.all(Object.entries(this.config.accounts).map(async ([name, account]) => {
+      try {
+        const detected = await detectAccountEnvironment(this.client, {
+          name,
+          apiKey: account.apiKey,
+          secretKey: account.secretKey,
+          passphrase: account.passphrase
+        }, account.environment);
+        account.environment = detected.account.environment;
+      } catch {}
+    }));
+    if (this.closing) return;
+    this.privateWebSockets = new PrivateAccountWebSockets(this.config, this.accountStore);
+    this.privateWebSockets.start();
   }
 
   private send(response: http.ServerResponse, status: number, value: unknown): void {

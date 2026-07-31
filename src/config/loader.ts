@@ -31,7 +31,7 @@ export function applyEnvironment(config: RuntimeConfig, env: NodeJS.ProcessEnv):
   }
   if (supplied === 0) return config;
   const name = env.OKX_ACCOUNT?.trim() || "default";
-  const environment = env.OKX_ENVIRONMENT === "live" ? "live" : "demo";
+  const environment = env.OKX_ENVIRONMENT === "demo" ? "demo" : "live";
   return RuntimeConfigSchema.parse({
     ...config,
     defaultAccount: name,
